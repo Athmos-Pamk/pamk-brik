@@ -12,6 +12,9 @@
 #include "minuteries.h"
 #include "ecrans.h"
 #include "console.h"
+#include "acces.h"
+#include "agenda.h"
+#include "stats.h"
 #include <Wire.h>
 
 // --- Comportements par défaut des applis ------------------------------------
@@ -35,6 +38,8 @@ App* appParId(uint8_t id) {
     case APP_CALENDRIER:   return appCalendrier();
     case APP_CALCULATRICE: return appCalculatrice();
     case APP_REGLAGES:     return appReglages();
+    case APP_RECHERCHE:    return appRecherche();
+    case APP_BILAN:        return appBilan();
     default:               return nullptr;
   }
 }
@@ -56,6 +61,11 @@ static uint32_t s_tDemarrage = 0;
 static bool s_avertiFaible = false;
 static EtatReseau s_dernierEtatReseau = RESEAU_ETEINT;
 static int s_dernierPct = -1;
+static bool s_rapide = false;             // prochain affichage : rapide (clavier)
+static bool s_correction = false;         // gris à corriger après un affichage rapide
+static uint32_t s_tRapide = 0;
+static bool s_appuiAffiche = false;       // une zone est inversée (retour au toucher)
+static const uint32_t CORRECTION_APRES_MS = 1500;   // après la dernière frappe
 
 // Gardés pendant le sommeil profond
 static RTC_DATA_ATTR uint8_t r_derniereApp = APP_ACCUEIL;
@@ -71,6 +81,11 @@ int profondeur() { return s_nb; }
 void redessiner(bool complet) {
   s_redessin = true;
   if (complet) s_complet = true;
+}
+
+void redessinerRapide() {
+  s_redessin = true;
+  if (Param.clavierRapide) s_rapide = true;
 }
 
 void ouvrir(App* a) {
@@ -122,6 +137,7 @@ void appliquerParametres() {
   Ecran::definirOrientation(Param.orientation);
   Ecran::definirModeMaj(Param.modeMaj);
   Ecran::definirCompletTous(Param.nettoyageAuto == 2 ? (uint16_t)NETTOYAGE_AUTO_TOUS : (uint16_t)0);
+  Ecran::definirCompletAuto(Param.nettoyageAuto == 3);
   Boutons::inverserVolume(Param.inverserVolume);
   Horloge::definirFuseau(Param.fuseau);
 }
@@ -152,9 +168,19 @@ static void rendre() {
 static void afficher() {
   s_redessin = false;
   const bool complet = s_complet;
+  const bool rapide = s_rapide && !complet;
   s_complet = false;
+  s_rapide = false;
   rendre();
-  Ecran::rafraichir(complet);
+  if (rapide) {
+    Ecran::rafraichirRapide();
+    s_correction = true;          // les gris (bords des lettres) seront corrigés plus tard
+    s_tRapide = millis();
+  } else {
+    Ecran::rafraichir(complet);
+    s_correction = false;
+  }
+  s_appuiAffiche = false;         // la page redessinée remplace la zone inversée
   Tactile::purger();
 }
 
@@ -168,18 +194,41 @@ void nettoyerEcran() {
 // ---------------------------------------------------------------------------
 //  Veille
 // ---------------------------------------------------------------------------
+// Mode nuit (Param.ecoNuit) : de NUIT_DEBUT_H à NUIT_FIN_H, l'heure de l'écran de veille
+// n'est plus mise à jour et le Wi-Fi ne se met pas à l'heure tout seul.
+static bool estLaNuit() {
+  if (!Param.ecoNuit || !Horloge::valide()) return false;
+  struct tm t;
+  Horloge::locale(t);
+  return t.tm_hour >= NUIT_DEBUT_H || t.tm_hour < NUIT_FIN_H;
+}
+
+// Secondes jusqu'à la fin de la nuit (NUIT_FIN_H h 00, heure locale).
+static uint32_t secondesJusquAuMatin() {
+  struct tm t;
+  Horloge::locale(t);
+  const int h = (24 + NUIT_FIN_H - t.tm_hour) % 24;
+  const long s = (long)h * 3600L - t.tm_min * 60L - t.tm_sec;
+  return s > 60 ? (uint32_t)s : 60;
+}
+
 // Secondes avant le prochain réveil programmé (0 = seulement le bouton).
 static uint32_t secondesAvantReveil() {
   const uint32_t m = Horloge::maintenant();
   uint32_t s = 0;
   if (Param.horlogeVeilleMin > 0 && Horloge::valide()) {
-    const uint32_t pas = Param.horlogeVeilleMin * 60UL;
-    s = pas - (m % pas);
-    if (s < 20) s += pas;
+    if (estLaNuit()) {
+      s = secondesJusquAuMatin();
+    } else {
+      const uint32_t pas = Param.horlogeVeilleMin * 60UL;
+      s = pas - (m % pas);
+      if (s < 20) s += pas;
+    }
   }
-  const uint32_t fin = Minuteries::prochaineEcheance();
-  if (fin) {
-    const uint32_t d = fin > m ? fin - m : 1;
+  const uint32_t fins[2] = {Minuteries::prochaineEcheance(), Horloge::valide() ? Stockage::prochainRappel() : 0};
+  for (int i = 0; i < 2; i++) {
+    if (!fins[i]) continue;
+    const uint32_t d = fins[i] > m ? fins[i] - m : 1;
     if (s == 0 || d < s) s = d;
   }
   return s;
@@ -236,7 +285,7 @@ static void dormirBatterieVide() {
 static void rafraichirHeureVeille() {
   Energie::mesurerMaintenant();
   if (Energie::vide()) dormirBatterieVide();
-  Ecrans::veille();
+  Ecrans::veille(!BOUTONS_PRESENTS);   // sans bouton, on n'arrive ici que depuis la veille profonde
   Ecran::rafraichir();
   Energie::sommeilProfond(secondesAvantReveil());
 }
@@ -251,16 +300,44 @@ static void ouvrirAlerte(Alerte al) {
   else ouvrir(appAlerte(al));
 }
 
+static void ouvrirRappel(const char* id) {
+  Energie::activite();
+  App* a = courante();
+  if (a && a->id() == APP_ALERTE) remplacer(appAlerteRappel(id));
+  else ouvrir(appAlerteRappel(id));
+}
+
+// Rappel de tâche arrivé (et pas encore affiché) : ouvre son écran. Retourne true si oui.
+// Une alerte (fin de Pomodoro, autre rappel) déjà à l'écran passe d'abord : le rappel attend
+// qu'elle soit fermée, il n'est marqué « vu » qu'une fois affiché.
+static bool verifierRappels() {
+  if (!Horloge::valide()) return false;
+  App* a = courante();
+  if (a && a->id() == APP_ALERTE) return false;
+  char id[ID_LONGUEUR + 1];
+  if (!Stockage::rappelArrive(Horloge::maintenant(), id, sizeof(id))) return false;
+  ouvrirRappel(id);
+  return true;
+}
+
 // Sans bouton marche (BOUTONS_PRESENTS = false) : la broche INT du tactile (GPIO47) ne peut
 // pas réveiller du sommeil profond. La veille est donc une suite de veilles légères (la RAM
 // et l'appli ouverte sont gardées) jusqu'à un contact sur l'écran. L'écran de veille est mis
-// à jour comme en sommeil profond (heure, batterie, fin de minuterie). Le tactile reste
-// allumé : la veille consomme plus qu'avec le bouton.
+// à jour comme en sommeil profond (heure, batterie, fin de minuterie, rappels). Le tactile
+// reste allumé : la veille consomme plus qu'avec le bouton. Après Param.sommeilApresH heures
+// sans contact, on passe au sommeil profond (réveil par le bouton SENSOR_VN de la carte).
 static void veilleAuToucher() {
   Tactile::purger();
   const uint32_t pasS = Param.horlogeVeilleMin * 60UL;
   uint32_t dernierPas = pasS ? Horloge::maintenant() / pasS : 0;
+  const uint32_t debut = millis();
   while (true) {
+    if (Param.sommeilApresH > 0 && !Energie::usbOrdinateur() &&
+        millis() - debut >= Param.sommeilApresH * 3600000UL) {
+      Ecrans::veille(true);
+      Ecran::rafraichir();
+      Energie::sommeilProfond(secondesAvantReveil());   // ne revient pas
+    }
     if (Energie::usbOrdinateur()) delay(VEILLE_TACTILE_SCRUTATION_MS);   // la veille légère couperait l'USB
     else Energie::veilleLegere(VEILLE_TACTILE_SCRUTATION_MS);
     if (Tactile::reveilParContact()) break;
@@ -273,7 +350,8 @@ static void veilleAuToucher() {
       ouvrirAlerte(al);
       break;
     }
-    if (pasS && Horloge::valide() && Horloge::maintenant() / pasS != dernierPas) {
+    if (verifierRappels()) break;
+    if (pasS && Horloge::valide() && !estLaNuit() && Horloge::maintenant() / pasS != dernierPas) {
       dernierPas = Horloge::maintenant() / pasS;
       Energie::mesurerMaintenant();
       if (Energie::vide()) dormirBatterieVide();
@@ -314,6 +392,16 @@ static void traiterGeste(const Geste& g) {
   if (!a) return;
   int code = 0, arg = 0;
   switch (g.type) {
+    case GESTE_POSE: {
+      // Retour immédiat : la zone touchée s'inverse tout de suite. La page redessinée après
+      // l'action la remet d'aplomb (ou boucle(), si le doigt part sans rien déclencher).
+      Boite b;
+      if (Param.retourToucher && !(s_toastVisible && g.y >= 776 && g.y < 852) && UI::chercherZone(g.x, g.y, b)) {
+        Ecran::inverserZone(b);
+        s_appuiAffiche = true;
+      }
+      break;
+    }
     case GESTE_TOUCHER:
       if (s_toastVisible && g.y >= 776 && g.y < 852) {   // toucher le bandeau le ferme
         s_toastVisible = false;
@@ -346,6 +434,7 @@ static void traiterGeste(const Geste& g) {
 static void tic() {
   const Alerte al = Minuteries::verifier();
   if (al != ALERTE_AUCUNE) ouvrirAlerte(al);
+  verifierRappels();
   App* a = courante();
   if (a) a->seconde();
 
@@ -390,6 +479,7 @@ static void tic() {
 
 static void verifierVeilleAuto() {
   if (Param.veilleS == 0) return;
+  if (Acces::actif()) return;   // page web ouverte depuis l'ordinateur
   if (Energie::usbOrdinateur() && !Param.veilleSurUSB) return;
   if (Reseau::occupe()) return;
   App* a = courante();
@@ -458,13 +548,19 @@ void demarrer() {
     Ecran::rafraichir();
   }
   const bool stockageOk = Stockage::demarrer();
+  Stats::demarrer();
+  Agenda::demarrer();
 
   Alerte alerte = ALERTE_AUCUNE;
+  char rappel[ID_LONGUEUR + 1] = "";
   if (cause == ESP_SLEEP_WAKEUP_TIMER) {
     alerte = Minuteries::verifier();
-    // Sans bouton, la veille ne passe pas par le sommeil profond : un réveil par minuterie
-    // vient de l'écran « batterie vide », on démarre normalement.
-    if (alerte == ALERTE_AUCUNE && BOUTONS_PRESENTS) rafraichirHeureVeille();   // ne revient pas
+    if (Horloge::valide()) Stockage::rappelArrive(Horloge::maintenant(), rappel, sizeof(rappel));
+    // Sans bouton, seule la veille profonde (après Param.sommeilApresH heures) programme ce
+    // réveil ; l'autre cas est l'écran « batterie vide », et alors on démarre normalement.
+    if (alerte == ALERTE_AUCUNE && !rappel[0] && (BOUTONS_PRESENTS || Ecrans::veilleProfonde())) {
+      rafraichirHeureVeille();   // ne revient pas
+    }
   }
 
   Energie::mesurerMaintenant();
@@ -483,6 +579,8 @@ void demarrer() {
     if (a) ouvrir(a);
   }
   if (alerte != ALERTE_AUCUNE) ouvrir(appAlerte(alerte));
+  if (rappel[0]) ouvrir(appAlerteRappel(rappel));
+  if (!Param.assistantFait) ouvrir(appAssistant());   // tout premier démarrage
 
   // Mise à l'heure par Wi-Fi
   // (au plus une tentative automatique toutes les 6 h si ça échoue, pour ménager la batterie)
@@ -490,7 +588,8 @@ void demarrer() {
   const bool heureVieille = !Horloge::valide() || maint - Horloge::derniereSynchro() > 86400UL;
   const bool essaiRecent = r_essaiWifi != 0 && maint - r_essaiWifi < 6UL * 3600UL;
   if (Param.wifiMode == 2 ||
-      (Param.wifiMode == 1 && (cause == ESP_SLEEP_WAKEUP_UNDEFINED || (heureVieille && !essaiRecent)))) {
+      (Param.wifiMode == 1 && !estLaNuit() &&
+       (cause == ESP_SLEEP_WAKEUP_UNDEFINED || (heureVieille && !essaiRecent)))) {
     r_essaiWifi = maint;
     Reseau::synchroniserHeure();
   }
@@ -514,8 +613,13 @@ void boucle() {
   Boutons::scruter();
   EvenementBouton eb;
   while (Boutons::lire(eb)) traiterBouton(eb);
+  if (Acces::actif()) Acces::boucle();
   const Geste g = Tactile::suivre();
   if (g.type != GESTE_AUCUN) traiterGeste(g);
+  // Zone inversée par le retour au toucher, mais le doigt est parti sans rien déclencher
+  if (s_appuiAffiche && !s_redessin && !Tactile::doigtPose()) redessiner();
+  // Après une frappe rapide au clavier : corrige les gris une fois la frappe arrêtée
+  if (s_correction && !s_redessin && millis() - s_tRapide > CORRECTION_APRES_MS) redessiner();
   if (millis() - s_tSeconde >= 1000) {
     s_tSeconde = millis();
     tic();

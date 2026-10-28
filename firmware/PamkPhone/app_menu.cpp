@@ -1,4 +1,4 @@
-// Lanceur : 6 grandes tuiles (2 x 3) avec icônes pixel.
+// Lanceur : 8 tuiles (2 x 4) avec icônes pixel.
 #include "app.h"
 #include "systeme.h"
 #include "ui.h"
@@ -9,20 +9,23 @@
 namespace {
 
 const int TUILE_L = (ECRAN_L - 3 * MARGE) / 2;   // 234
-const int TUILE_H = 220;
-const int TUILE_Y0 = CONTENU_Y + 24;
-const int TUILE_ECART = 20;
+const int TUILE_H = 178;
+const int TUILE_Y0 = CONTENU_Y + 20;
+const int TUILE_ECART = 16;
+const int NB_TUILES = 8;
 
 struct DefTuile {
   const char* nom;
   Icone icone;
   IdApp app;
 };
-const DefTuile TUILES[6] = {
+const DefTuile TUILES[NB_TUILES] = {
   {"Tâches", ICONE_TACHES, APP_TACHES},
   {"Notes", ICONE_NOTES, APP_NOTES},
   {"Pomodoro", ICONE_POMODORO, APP_POMODORO},
   {"Calendrier", ICONE_CALENDRIER, APP_CALENDRIER},
+  {"Recherche", ICONE_RECHERCHE, APP_RECHERCHE},
+  {"Bilan", ICONE_BILAN, APP_BILAN},
   {"Calculatrice", ICONE_CALCULATRICE, APP_CALCULATRICE},
   {"Réglages", ICONE_REGLAGES, APP_REGLAGES},
 };
@@ -33,15 +36,15 @@ class AppMenu : public App {
 
   void dessiner() override {
     UI::barreTitre("Applications", true);
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < NB_TUILES; i++) {
       const int x = MARGE + (i % 2) * (TUILE_L + MARGE);
       const int y = TUILE_Y0 + (i / 2) * (TUILE_H + TUILE_ECART);
       Dessin::chanfrein(x, y, TUILE_L, TUILE_H, 16, TRAIT, NOIR);
-      Dessin::icone(TUILES[i].icone, x + (TUILE_L - 72) / 2, y + 28, 6, NOIR);
-      Dessin::texteCentre(F_GRAS, x + TUILE_L / 2, y + 150, TUILES[i].nom, NOIR);
+      Dessin::icone(TUILES[i].icone, x + (TUILE_L - 60) / 2, y + 20, 5, NOIR);
+      Dessin::texteCentre(F_GRAS, x + TUILE_L / 2, y + 118, TUILES[i].nom, NOIR);
       char info[40];
       infoTuile(TUILES[i].app, info, sizeof(info));
-      Dessin::texteCentre(F_PETITE, x + TUILE_L / 2, y + 188, info, GRIS_FONCE);
+      Dessin::texteCentre(F_PETITE, x + TUILE_L / 2, y + 152, info, GRIS_FONCE);
       UI::zone(boite(x, y, TUILE_L, TUILE_H), (int)TUILES[i].app);
     }
   }
@@ -83,6 +86,12 @@ class AppMenu : public App {
         break;
       case APP_REGLAGES:
         snprintf(b, n, "Wi-Fi, heure, écran");
+        break;
+      case APP_RECHERCHE:
+        snprintf(b, n, "tâches et notes");
+        break;
+      case APP_BILAN:
+        snprintf(b, n, "ta semaine");
         break;
       default:
         break;

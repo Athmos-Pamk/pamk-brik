@@ -1,5 +1,7 @@
 // Clavier AZERTY à l'écran : lettres, accents (é è ê ë à â ç ù û î ï ô œ...), chiffres, symboles.
-// Taper à la fin du texte ne fait que foncer des pixels : l'écran se met à jour sans flash.
+// Frappe (touches, effacer, curseur) : affichage rapide en noir et blanc (Systeme::redessinerRapide),
+// les gris sont corrigés quand la frappe s'arrête. Sans l'option « clavier rapide », taper à la
+// fin du texte ne fait que foncer des pixels : l'écran se met à jour sans flash.
 // Curseur : toucher le texte, ou volume + / volume − (un caractère à droite / à gauche).
 #include "app.h"
 #include "systeme.h"
@@ -65,10 +67,15 @@ enum Code { C_OK = 1, C_VOIR = 2, C_TOUCHE = 100 };
 
 const Boite ZONE_TEXTE = {MARGE, CONTENU_Y + 12, ECRAN_L - 2 * MARGE, CLAVIER_Y - CONTENU_Y - 24};
 const int PADDING = 16;
-const int INTERLIGNE = 38;
 const int LARGEUR_TEXTE = ECRAN_L - 2 * MARGE - 2 * PADDING;   // 460
-const int LIGNES_VISIBLES = (CLAVIER_Y - CONTENU_Y - 24 - 2 * PADDING) / INTERLIGNE;   // 10
 const int LIGNES_MAX = NOTE_TEXTE_MAX + 1;
+
+// Texte saisi selon la taille du texte (Réglages > Écran, policeTexte()), comme app_notes.cpp :
+// interligne = celui de la police + 4 px (38 pour 28 px, 47 pour 36 px), première ligne de
+// base 11 px sous les majuscules (+30 / +37), 10 ou 8 lignes visibles.
+int interligne() { return Dessin::hauteurLigne(policeTexte()) + 4; }
+int premiereBase() { return ZONE_TEXTE.y + PADDING + 11 + Dessin::hautCapitale(policeTexte()); }
+int lignesVisibles() { return (CLAVIER_Y - CONTENU_Y - 24 - 2 * PADDING) / interligne(); }
 
 // Majuscule d'une lettre (ASCII, Latin-1, œ, ÿ) ; sinon inchangé.
 uint32_t majuscule(uint32_t cp) {
@@ -141,7 +148,7 @@ class AppClavier : public App {
       if (r < 4 && k < COUCHES[m_couche][r].nb && COUCHES[m_couche][r].touches[k].action == T_EFF) {
         while (m_curseur > 0 && m_texte[m_curseur - 1] == ' ') effacer();
         while (m_curseur > 0 && m_texte[m_curseur - 1] != ' ' && m_texte[m_curseur - 1] != '\n') effacer();
-        Systeme::redessiner();
+        Systeme::redessinerRapide();
         return;
       }
     }
@@ -152,7 +159,7 @@ class AppClavier : public App {
     if (m_mode == SAISIE_MOT_DE_PASSE || !dansBoite(ZONE_TEXTE, x, y)) return;
     const int n = decouper();
     const int premiere = premiereLigne(n);
-    int li = premiere + (y - (ZONE_TEXTE.y + PADDING)) / INTERLIGNE;
+    int li = premiere + (y - (ZONE_TEXTE.y + PADDING)) / interligne();
     li = borner(li, 0, n - 1);
     const LigneTexte& l = m_lignes[li];
     const int cible = x - (ZONE_TEXTE.x + PADDING);
@@ -161,13 +168,13 @@ class AppClavier : public App {
       const char* q = m_texte + pos;
       Dessin::utf8Lire(q);
       const int suivant = (int)(q - m_texte);
-      const int a = Dessin::largeurN(F_TEXTE, m_texte + pos, suivant - pos);
+      const int a = Dessin::largeurN(policeTexte(), m_texte + pos, suivant - pos);
       if (cumul + a / 2 > cible) break;
       cumul += a;
       pos = suivant;
     }
     m_curseur = pos;
-    Systeme::redessiner();
+    Systeme::redessinerRapide();
   }
 
   bool bouton(Bouton b) override {
@@ -179,7 +186,7 @@ class AppClavier : public App {
     } else if (b == BOUTON_MOINS && m_curseur > 0) {
       m_curseur = Dessin::utf8Precedent(m_texte, m_curseur);
     }
-    Systeme::redessiner();
+    Systeme::redessinerRapide();
     return true;
   }
 
@@ -225,7 +232,7 @@ class AppClavier : public App {
   }
 
   int decouper() {
-    const int n = Dessin::couperLignes(F_TEXTE, texteAffiche(), LARGEUR_TEXTE, m_lignes, LIGNES_MAX);
+    const int n = Dessin::couperLignes(policeTexte(), texteAffiche(), LARGEUR_TEXTE, m_lignes, LIGNES_MAX);
     return n < 1 ? 1 : n;
   }
 
@@ -242,32 +249,35 @@ class AppClavier : public App {
 
   int premiereLigne(int n) {
     const int lc = (m_mode == SAISIE_MOT_DE_PASSE) ? n - 1 : ligneDuCurseur(n);
-    return maxi(0, lc - LIGNES_VISIBLES + 1);
+    return maxi(0, lc - lignesVisibles() + 1);
   }
 
   void dessinerTexte() {
     const Boite& z = ZONE_TEXTE;
     Dessin::chanfrein(z.x, z.y, z.l, z.h, CHANFREIN, 2, GRIS);
     const int x0 = z.x + PADDING;
-    const int base0 = z.y + PADDING + 30;
+    const GFXfont* p = policeTexte();
+    const int pas = interligne(), visibles = lignesVisibles(), base0 = premiereBase();
     if (m_long == 0) {
-      Dessin::texte(F_TEXTE, x0, base0, m_mode == SAISIE_MOT_DE_PASSE ? "Mot de passe" : "Écris ici…", GRIS);
+      Dessin::texte(p, x0, base0, m_mode == SAISIE_MOT_DE_PASSE ? "Mot de passe" : "Écris ici…", GRIS);
     } else {
       const char* aff = texteAffiche();
       const int n = decouper();
       const int premiere = premiereLigne(n);
       if (premiere > 0) Dessin::texteDroite(F_PETITE, z.x + z.l - PADDING, z.y + 26, "…", GRIS);
-      for (int i = 0; i < LIGNES_VISIBLES && premiere + i < n; i++) {
+      for (int i = 0; i < visibles && premiere + i < n; i++) {
         const LigneTexte& l = m_lignes[premiere + i];
-        Dessin::texteN(F_TEXTE, x0, base0 + i * INTERLIGNE, aff + l.debut, l.fin - l.debut, NOIR);
+        Dessin::texteN(p, x0, base0 + i * pas, aff + l.debut, l.fin - l.debut, NOIR);
       }
       // Curseur seulement s'il n'est pas à la fin (taper à la fin reste sans flash).
+      // 28 px : de 28 px au-dessus de la ligne de base, haut de 36 (9 px au-dessus des majuscules).
       if (m_mode != SAISIE_MOT_DE_PASSE && m_curseur < m_long) {
         const int lc = ligneDuCurseur(n);
-        if (lc >= premiere && lc < premiere + LIGNES_VISIBLES) {
+        if (lc >= premiere && lc < premiere + visibles) {
           const LigneTexte& l = m_lignes[lc];
-          const int x = x0 + Dessin::largeurN(F_TEXTE, m_texte + l.debut, m_curseur - l.debut);
-          Dessin::rectPlein(x - 1, base0 + (lc - premiere) * INTERLIGNE - 28, 3, 36, NOIR);
+          const int x = x0 + Dessin::largeurN(p, m_texte + l.debut, m_curseur - l.debut);
+          const int haut = Dessin::hautCapitale(p) + 9;
+          Dessin::rectPlein(x - 1, base0 + (lc - premiere) * pas - haut, 3, pas - 2, NOIR);
         }
       }
     }
@@ -368,7 +378,9 @@ class AppClavier : public App {
       case T_SYMBOLES: m_couche = COUCHE_SYMBOLES; break;
       default: break;
     }
-    Systeme::redessiner();
+    // Rapide aussi pour majuscules et changements de clavier : ils arrivent au milieu de la
+    // frappe, et la correction des gris n'a lieu qu'une fois la frappe arrêtée.
+    Systeme::redessinerRapide();
   }
 };
 

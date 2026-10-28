@@ -36,36 +36,51 @@ void rappelNouvelle(bool ok, const char* texte, void* ctx) {
 // ---------------------------------------------------------------------------
 enum CodeListe { L_NOUVELLE, L_OUVRIR };
 const int LISTE_Y = CONTENU_Y + 8;
-const int PAR_PAGE = (PIED_Y - LISTE_Y) / LIGNE_H;   // 7
+
+// Mise en page d'une ligne de la liste selon la taille du texte (Réglages > Écran) :
+// lignes de base du titre et de l'aperçu, hauteur de la ligne. 7 notes par page dans
+// les deux cas (7 x 104 = 728 px sur les 732 disponibles).
+struct Rang {
+  int titre;
+  int apercu;
+  int h;
+};
+Rang rang() {
+  if (policeGras() == F_GRAS) return {40, 74, LIGNE_H};   // titre 28 px
+  return {48, 86, 104};                                     // titre 36 px
+}
+int parPage() { return (PIED_Y - LISTE_Y) / rang().h; }   // 7
 
 class AppNotes : public App {
  public:
   IdApp id() const override { return APP_NOTES; }
 
-  void entrer() override { m_pages.regler(Stockage::nbNotes(), PAR_PAGE); }
+  void entrer() override { m_pages.regler(Stockage::nbNotes(), parPage()); }
 
   void dessiner() override {
     UI::barreTitre("Notes", true, "+", L_NOUVELLE);
     const int n = Stockage::nbNotes();
-    m_pages.regler(n, PAR_PAGE);
+    const Rang r = rang();
+    const int parPg = parPage();
+    m_pages.regler(n, parPg);
     if (n == 0) UI::messageVide(LISTE_Y + 120, "Aucune note", "Touche + pour en écrire une.");
-    for (int i = 0; i < PAR_PAGE; i++) {
-      const int k = m_pages.page * PAR_PAGE + i;
+    for (int i = 0; i < parPg; i++) {
+      const int k = m_pages.page * parPg + i;
       if (k >= n) break;
       const Note* note = Stockage::note(k);
-      const int y = LISTE_Y + i * LIGNE_H;
+      const int y = LISTE_Y + i * r.h;
       char titre[96], date[24];
       Stockage::titreNote(note, titre, sizeof(titre));
       dateCourte(note->maj, date, sizeof(date));
       const int ld = Dessin::largeur(F_PETITE, date);
-      Dessin::texteTronque(F_GRAS, MARGE, y + 40, ECRAN_L - 2 * MARGE - ld - 16, titre[0] ? titre : "(sans titre)", NOIR);
-      Dessin::texteDroite(F_PETITE, ECRAN_L - MARGE, y + 40, date, GRIS_FONCE);
+      Dessin::texteTronque(policeGras(), MARGE, y + r.titre, ECRAN_L - 2 * MARGE - ld - 16, titre[0] ? titre : "(sans titre)", NOIR);
+      Dessin::texteDroite(F_PETITE, ECRAN_L - MARGE, y + r.titre, date, GRIS_FONCE);
       // Aperçu : la suite du texte, sur une ligne
       char apercu[96];
       apercuNote(note, apercu, sizeof(apercu));
-      if (apercu[0]) Dessin::texteTronque(F_PETITE, MARGE, y + 74, ECRAN_L - 2 * MARGE, apercu, GRIS_FONCE);
-      UI::separateur(y + LIGNE_H - 2);
-      UI::zone(boite(0, y, ECRAN_L, LIGNE_H), L_OUVRIR, k);
+      if (apercu[0]) Dessin::texteTronque(F_PETITE, MARGE, y + r.apercu, ECRAN_L - 2 * MARGE, apercu, GRIS_FONCE);
+      UI::separateur(y + r.h - 2);
+      UI::zone(boite(0, y, ECRAN_L, r.h), L_OUVRIR, k);
     }
     UI::pagination(m_pages);
   }
@@ -141,9 +156,13 @@ AppNotes g_notes;
 // ---------------------------------------------------------------------------
 enum CodeVue { V_MODIFIER, V_SUPPRIMER, V_TEXTE };
 const int TEXTE_Y = CONTENU_Y + 16;
-const int INTERLIGNE = 38;
-const int LIGNES_PAGE = (PIED_Y - 8 - TEXTE_Y) / INTERLIGNE;   // 18
 const int LIGNES_MAX = NOTE_TEXTE_MAX + 1;
+
+// Selon la taille du texte (Réglages > Écran) : interligne = celui de la police + 4 px
+// (38 pour 28 px, 47 pour 36 px) ; première ligne de base 11 px sous les majuscules.
+int interligne() { return Dessin::hauteurLigne(policeTexte()) + 4; }
+int premiereBase() { return TEXTE_Y + 11 + Dessin::hautCapitale(policeTexte()); }   // +30 / +37
+int lignesPage() { return (PIED_Y - 8 - TEXTE_Y) / interligne(); }                  // 18 / 15
 
 class AppNote : public App {
  public:
@@ -168,13 +187,15 @@ class AppNote : public App {
     UI::barreTitre(titre[0] ? titre : "Note", true, "Modifier", V_MODIFIER);
     if (!m_lignes) m_lignes = (LigneTexte*)ps_malloc(sizeof(LigneTexte) * LIGNES_MAX);
     if (!m_lignes) return;
-    const int nb = Dessin::couperLignes(F_TEXTE, n->texte, ECRAN_L - 2 * MARGE, m_lignes, LIGNES_MAX);
-    m_pages.regler(nb, LIGNES_PAGE);
+    const GFXfont* police = policeTexte();
+    const int pas = interligne(), parPg = lignesPage(), base = premiereBase();
+    const int nb = Dessin::couperLignes(police, n->texte, ECRAN_L - 2 * MARGE, m_lignes, LIGNES_MAX);
+    m_pages.regler(nb, parPg);
     UI::zone(boite(0, TEXTE_Y, ECRAN_L, PIED_Y - TEXTE_Y), V_TEXTE);   // appui long = supprimer
-    for (int i = 0; i < LIGNES_PAGE; i++) {
-      const int k = m_pages.page * LIGNES_PAGE + i;
+    for (int i = 0; i < parPg; i++) {
+      const int k = m_pages.page * parPg + i;
       if (k >= nb) break;
-      Dessin::texteN(F_TEXTE, MARGE, TEXTE_Y + 30 + i * INTERLIGNE, n->texte + m_lignes[k].debut,
+      Dessin::texteN(police, MARGE, base + i * pas, n->texte + m_lignes[k].debut,
                      m_lignes[k].fin - m_lignes[k].debut, NOIR);
     }
     // Pied : pages et suppression

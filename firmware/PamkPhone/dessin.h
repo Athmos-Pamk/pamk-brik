@@ -33,6 +33,8 @@ enum Icone : uint8_t {
   ICONE_MAJ_PLEIN,      // 9 x 8 (verrouillage majuscules)
   ICONE_EFFACER,        // 10 x 5
   ICONE_ENTREE,         // 10 x 7
+  ICONE_RECHERCHE,      // 12 x 12 (loupe)
+  ICONE_BILAN,          // 12 x 12 (barres)
   ICONE_NB
 };
 

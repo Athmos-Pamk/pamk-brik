@@ -13,7 +13,7 @@ void parametresParDefaut() {
   Param.horlogeVeilleMin = 15;
   Param.orientation = ORIENTATION_DEFAUT;
   Param.modeMaj = 0;          // pixels
-  Param.nettoyageAuto = 0;    // jamais
+  Param.nettoyageAuto = 3;    // auto selon l'usure
   Param.inverserVolume = false;
   Param.veilleLegere = true;
   Param.veilleSurUSB = false;
@@ -26,12 +26,21 @@ void parametresParDefaut() {
   copier(Param.fuseau, sizeof(Param.fuseau), FUSEAU_DEFAUT);
   copier(Param.ntp, sizeof(Param.ntp), NTP_DEFAUT);
   copier(Param.prenom, sizeof(Param.prenom), "");
+  Param.retourToucher = true;
+  Param.clavierRapide = true;
+  Param.tailleTexte = 0;
+  Param.ecoNuit = true;
+  Param.sommeilApresH = 4;
+  Param.assistantFait = false;
+  copier(Param.icalUrl, sizeof(Param.icalUrl), "");
 }
 
 // Version des réglages enregistrés. 2 (27/10/2026) : orientation par défaut retournée,
 // nouveau mode de mise à jour de l'écran ; les anciennes clés « orient », « doux » et
 // « complet » de la première version sont abandonnées une fois pour toutes.
-static const uint8_t VERSION_REGLAGES = 2;
+// 3 (28/10/2026) : image complète « auto » par défaut ; un téléphone déjà utilisé ne
+// repasse pas par le premier démarrage guidé.
+static const uint8_t VERSION_REGLAGES = 3;
 
 static void migrer(uint8_t version) {
   Preferences p;
@@ -40,6 +49,10 @@ static void migrer(uint8_t version) {
     p.remove("orient");    // valeur 1 enregistrée par la V0.1 = image à l'envers
     p.remove("doux");
     p.remove("complet");
+  }
+  if (version < 3) {
+    if (p.getUChar("netauto", 0) == 0) p.putUChar("netauto", 3);   // « jamais » était le défaut
+    p.putBool("assistant", true);
   }
   p.putUChar("version", VERSION_REGLAGES);
   p.end();
@@ -76,10 +89,19 @@ void chargerParametres() {
   copier(Param.ntp, sizeof(Param.ntp), s.c_str());
   s = p.getString("prenom", Param.prenom);
   copier(Param.prenom, sizeof(Param.prenom), s.c_str());
+  Param.retourToucher = p.getBool("retour", Param.retourToucher);
+  Param.clavierRapide = p.getBool("clavrapide", Param.clavierRapide);
+  Param.tailleTexte = p.getUChar("taille", Param.tailleTexte);
+  Param.ecoNuit = p.getBool("econuit", Param.ecoNuit);
+  Param.sommeilApresH = p.getUChar("sommeilh", Param.sommeilApresH);
+  Param.assistantFait = p.getBool("assistant", Param.assistantFait);
+  s = p.getString("ical", Param.icalUrl);
+  copier(Param.icalUrl, sizeof(Param.icalUrl), s.c_str());
   p.end();
   // Garde-fous
   if (Param.modeMaj > 1) Param.modeMaj = 0;
-  if (Param.nettoyageAuto > 2) Param.nettoyageAuto = 0;
+  if (Param.nettoyageAuto > 3) Param.nettoyageAuto = 3;
+  if (Param.tailleTexte > 1) Param.tailleTexte = 0;
   if (Param.wifiMode > 2) Param.wifiMode = 1;
   if (Param.pomoTravail < 1) Param.pomoTravail = 25;
   if (Param.pomoPause < 1) Param.pomoPause = 5;
@@ -112,6 +134,13 @@ void sauverParametres() {
   p.putString("fuseau", Param.fuseau);
   p.putString("ntp", Param.ntp);
   p.putString("prenom", Param.prenom);
+  p.putBool("retour", Param.retourToucher);
+  p.putBool("clavrapide", Param.clavierRapide);
+  p.putUChar("taille", Param.tailleTexte);
+  p.putBool("econuit", Param.ecoNuit);
+  p.putUChar("sommeilh", Param.sommeilApresH);
+  p.putBool("assistant", Param.assistantFait);
+  p.putString("ical", Param.icalUrl);
   p.end();
 }
 

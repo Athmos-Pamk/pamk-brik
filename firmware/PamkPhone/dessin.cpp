@@ -405,6 +405,16 @@ static const char* const IC_EFFACER[] = {
 static const char* const IC_ENTREE[] = {
   ".........#", ".........#", "..#......#", ".##......#", "##########", ".##.......", "..#.......",
 };
+static const char* const IC_RECHERCHE[] = {
+  "..####......", ".##..##.....", "##....##....", "#......#....",
+  "#......#....", "##....##....", ".##..##.....", "..######....",
+  "......###...", ".......###..", "........###.", ".........##.",
+};
+static const char* const IC_BILAN[] = {
+  "............", "........##..", "........##..", "........##..",
+  "....##..##..", "....##..##..", "....##..##..", "##..##..##..",
+  "##..##..##..", "##..##..##..", "............", "############",
+};
 
 struct DefIcone {
   const char* const* lignes;
@@ -415,7 +425,8 @@ static const DefIcone ICONES[ICONE_NB] = {
   {IC_CALENDRIER, 12, 12}, {IC_CALCULATRICE, 12, 12}, {IC_REGLAGES, 12, 12},
   {IC_ACCUEIL, 12, 12},    {IC_COCHE, 7, 6},          {IC_CHEVRON_G, 5, 7},
   {IC_CHEVRON_D, 5, 7},    {IC_MAJ, 9, 8},            {IC_MAJ_PLEIN, 9, 8},
-  {IC_EFFACER, 10, 5},     {IC_ENTREE, 10, 7},
+  {IC_EFFACER, 10, 5},     {IC_ENTREE, 10, 7},        {IC_RECHERCHE, 12, 12},
+  {IC_BILAN, 12, 12},
 };
 
 void icone(Icone i, int x, int y, int taille, uint8_t c) {

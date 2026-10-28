@@ -7,7 +7,7 @@
 #include <Arduino.h>
 
 #define PAMK_NOM      "Pamk Phone"
-#define PAMK_VERSION  "0.1.0"
+#define PAMK_VERSION  "0.2.0"
 
 #ifndef BOARD_HAS_PSRAM
 #error "Active la PSRAM : Outils > PSRAM > OPI PSRAM (voir firmware/README.md)"
@@ -103,6 +103,8 @@ constexpr int BATTERIE_CHARGE_MV   = 4230;   // au-dessus : on suppose l'USB bra
 constexpr uint32_t MESURE_BATTERIE_MS = 120000;  // mesure périodique hors rafraîchissement
 constexpr uint32_t VEILLE_LEGERE_MAX_MS = 40;    // réveil périodique pour lire le tactile
 constexpr uint32_t DELAI_AVANT_VEILLE_LEGERE_MS = 1500; // après la dernière action
+constexpr int NUIT_DEBUT_H = 23;             // mode nuit (Param.ecoNuit) : de 23 h…
+constexpr int NUIT_FIN_H = 7;                // …à 7 h
 
 // ---------------------------------------------------------------------------
 //  Données

@@ -6,6 +6,7 @@
 
 enum TypeGeste : uint8_t {
   GESTE_AUCUN,
+  GESTE_POSE,        // le doigt vient de se poser (x, y) : sert au retour immédiat (28/10/2026)
   GESTE_TOUCHER,     // appui court
   GESTE_APPUI_LONG,  // doigt immobile >= TACTILE_APPUI_LONG_MS
   GESTE_GLISSER,     // déplacement >= TACTILE_GLISSER_PX (dx, dy)

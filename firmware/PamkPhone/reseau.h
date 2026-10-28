@@ -40,4 +40,15 @@ void ssidConnu(int i, char* sortie, size_t taille);
 bool estConnu(const char* ssid);
 void oublier(int i);
 
+// 28/10/2026 : accès depuis l'ordinateur et agenda
+// Connexion à un réseau connu qui RESTE établie (même en mode auto), sans économie d'énergie
+// de la radio (réponses rapides), jusqu'à liberer().
+void garderConnecte();
+void liberer();                        // fin de garderConnecte() : extinction selon Param.wifiMode
+bool garde();
+// Mise à jour de l'agenda : connexion si besoin (comme synchroniserHeure), téléchargement dès
+// que l'heure est crédible, puis extinction en mode auto. Sans effet si aucun agenda configuré.
+void mettreAJourAgenda();
+bool agendaEnCours();                  // demandée et pas encore faite (ou abandonnée)
+
 }  // namespace Reseau

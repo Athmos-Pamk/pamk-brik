@@ -20,6 +20,10 @@ int pomoRestantS();
 int pomoDureeS();
 int pomoCyclesFaits();               // pomodoros terminés depuis le début de la série
 const char* nomPhase(PhasePomo p);
+// Tâche sur laquelle on travaille (28/10/2026), gardée en mémoire RTC : "" = aucune.
+// Elle reste choisie d'un pomodoro à l'autre ; l'appli vérifie qu'elle existe encore.
+void pomoChoisirTache(const char* id);
+const char* pomoTache();
 // Minuteur
 void minDemarrer(int secondes);
 void minPauseReprise();

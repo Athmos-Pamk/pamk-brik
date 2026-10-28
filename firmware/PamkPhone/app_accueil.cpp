@@ -1,4 +1,5 @@
-// Accueil : grande horloge, date, Pamk, prochaines tâches, Pomodoro, accès aux applis.
+// Accueil : grande horloge, date, Pamk, prochain rendez-vous de l'agenda, tâches
+// d'aujourd'hui (capture rapide avec « + »), Pomodoro, accès aux applis.
 #include "app.h"
 #include "systeme.h"
 #include "ui.h"
@@ -6,16 +7,42 @@
 #include "stockage.h"
 #include "parametres.h"
 #include "minuteries.h"
+#include "agenda.h"
 
 namespace {
 
-enum Code { C_HORLOGE, C_COCHER, C_TACHE, C_TOUT_VOIR, C_POMODORO, C_POMO_DEMARRER, C_APPLIS };
+enum Code {
+  C_HORLOGE, C_COCHER, C_TACHE, C_TOUT_VOIR, C_POMODORO, C_POMO_DEMARRER, C_APPLIS,
+  C_AJOUTER, C_AGENDA,
+};
 
-const int Y_HORLOGE = 72;         // haut de la zone horloge
-const int Y_TACHES = 432;         // titre de section « À faire »
-const int H_TACHE = 72;
-const int NB_TACHES = 3;
-const int Y_POMO = 740;           // ligne de base de l'étiquette « Pomodoro »
+// Mise en page (28/10/2026), de haut en bas sous la barre d'état (0..47) :
+const int Y_HORLOGE = 182;        // ligne de base de l'horloge (chiffres de 112 px : 70..182)
+const int Y_DATE = 226;           // ligne de base de la date
+const int Y_PAMK = 246;           // haut du bloc Pamk + salutation (60 px)
+const int Y_SUITE = 316;          // rendez-vous éventuel, puis la section « Aujourd'hui »
+const int RDV_H = 48;             // ligne « prochain rendez-vous »
+const int SECTION_H = 64;         // titre « AUJOURD'HUI », « Tout voir » et bouton +
+const int H_TACHE = 64;
+const int NB_TACHES_MAX = 5;      // 5 lignes sans rendez-vous, 4 avec
+const int Y_POMO = 760;           // ligne de base de l'étiquette « Pomodoro »
+const int Y_FIN_TACHES = Y_POMO - 54;   // 706 : les lignes de tâches s'arrêtent avant
+const int Y_APPLIS = 860;
+
+// Heure d'une tâche ou d'un rendez-vous : « 9:00 », « 14:30 ».
+void texteMinutes(int minutes, char* b, size_t n) { snprintf(b, n, "%d:%02d", minutes / 60, minutes % 60); }
+
+void rappelCapture(bool ok, const char* texte, void* ctx) {
+  (void)ctx;
+  if (!ok || !texte) return;
+  const char* p = texte;
+  while (*p == ' ') p++;
+  if (!*p) return;
+  // Capture rapide : la tâche est pour aujourd'hui (sans date si l'heure n'est pas réglée).
+  if (!Stockage::ajouterTache(texte, Horloge::valide() ? Horloge::aujourdhui() : 0)) {
+    Systeme::notifier("Impossible d'ajouter la tâche");
+  }
+}
 
 class AppAccueil : public App {
  public:
@@ -31,7 +58,7 @@ class AppAccueil : public App {
     char h[8];
     if (Horloge::valide()) Horloge::texteHeure(h, sizeof(h), t);
     else strcpy(h, "--:--");
-    Dessin::texteCentre(F_HORLOGE, ECRAN_L / 2, Y_HORLOGE + 150, h, NOIR);
+    Dessin::texteCentre(F_HORLOGE, ECRAN_L / 2, Y_HORLOGE, h, NOIR);
     char date[48];
     if (Horloge::valide()) {
       Horloge::texteDateLongue(date, sizeof(date), Horloge::dateDe(t), false);
@@ -41,57 +68,36 @@ class AppAccueil : public App {
       // une heure fausse. Toucher ici ouvre Réglages > Wi-Fi.
       strcpy(date, "Heure à régler : connecte le Wi-Fi");
     }
-    Dessin::texteCentre(F_GRAS, ECRAN_L / 2, Y_HORLOGE + 206, date, NOIR);
-    UI::zone(boite(0, Y_HORLOGE, ECRAN_L, 230), C_HORLOGE);
+    Dessin::texteCentre(F_GRAS, ECRAN_L / 2, Y_DATE, date, NOIR);
+    UI::zone(boite(0, BARRE_ETAT_H + 4, ECRAN_L, Y_DATE + 14 - BARRE_ETAT_H - 4), C_HORLOGE);
 
     // Pamk et salutation
-    const int y = Y_HORLOGE + 248;
-    Dessin::visagePamk(MARGE + 48, y, 8, VISAGE_NORMAL, NOIR);
+    Dessin::visagePamk(MARGE + 44, Y_PAMK + 2, 8, VISAGE_NORMAL, NOIR);
     char salut[64];
     const char* bonjour = "Bonjour";
     if (t.tm_hour >= 18 || t.tm_hour < 5) bonjour = "Bonsoir";
     else if (t.tm_hour >= 12) bonjour = "Bon après-midi";
     if (Param.prenom[0]) snprintf(salut, sizeof(salut), "%s %s", bonjour, Param.prenom);
     else snprintf(salut, sizeof(salut), "%s !", bonjour);
-    Dessin::texteTronque(F_GRAS, MARGE + 116, y + 26, ECRAN_L - MARGE * 2 - 116, salut, NOIR);
+    Dessin::texteTronque(F_GRAS, MARGE + 112, Y_PAMK + 28, ECRAN_L - MARGE * 2 - 112, salut, NOIR);
     char resume[64];
     const int aFaire = Stockage::nbTachesAFaire();
     const int retard = Stockage::nbTachesEnRetard();
     if (aFaire == 0) snprintf(resume, sizeof(resume), "Rien à faire pour l'instant");
     else if (retard > 0) snprintf(resume, sizeof(resume), "%d à faire, dont %d en retard", aFaire, retard);
     else snprintf(resume, sizeof(resume), "%d tâche%s à faire", aFaire, aFaire > 1 ? "s" : "");
-    Dessin::texte(F_PETITE, MARGE + 116, y + 60, resume, GRIS_FONCE);
-    UI::separateur(Y_TACHES - 32);
+    Dessin::texte(F_PETITE, MARGE + 112, Y_PAMK + 58, resume, GRIS_FONCE);
 
-    // Prochaines tâches
-    UI::etiquette(MARGE, Y_TACHES + 8, "À FAIRE");
-    Dessin::texteDroite(F_GRAS, ECRAN_L - MARGE, Y_TACHES + 4, "Tout voir", NOIR);
-    UI::zone(boite(ECRAN_L - 200, Y_TACHES - 30, 200, 52), C_TOUT_VOIR);
-    int idx[NB_TACHES];
-    const int n = Stockage::listeTaches(TACHES_A_FAIRE, idx, NB_TACHES);
-    int yy = Y_TACHES + 24;
-    if (n == 0) {
-      Dessin::texte(F_TEXTE, MARGE, yy + 46, "Rien à faire. Profite !", GRIS_FONCE);
-    }
-    for (int i = 0; i < n; i++) {
-      const Tache* ta = Stockage::tache(idx[i]);
-      UI::caseACocher(MARGE, yy + (H_TACHE - CASE_TAILLE) / 2, false);
-      UI::zone(boite(0, yy, 84, H_TACHE), C_COCHER, idx[i]);
-      int largeurDate = 0;
-      if (ta->echeance) {
-        char e[24];
-        Horloge::texteDateRelative(e, sizeof(e), ta->echeance);
-        const bool retardee = ta->echeance < Horloge::aujourdhui();
-        largeurDate = Dessin::largeur(F_PETITE, e) + 12;
-        Dessin::texteDroite(F_PETITE, ECRAN_L - MARGE, yy + 46, e, retardee ? NOIR : GRIS_FONCE);
-      }
-      Dessin::texteTronque(F_TEXTE, MARGE + 60, yy + 46, ECRAN_L - 2 * MARGE - 60 - largeurDate, ta->titre, NOIR);
-      UI::zone(boite(84, yy, ECRAN_L - 84, H_TACHE), C_TACHE, idx[i]);
-      yy += H_TACHE;
-    }
-    UI::separateur(Y_POMO - 52);
+    // Prochain rendez-vous (agenda en lecture seule), s'il y en a un
+    int y = Y_SUITE;
+    if (ligneRendezVous(y)) y += RDV_H;
+
+    // Aujourd'hui
+    UI::separateur(y + 2);
+    dessinerTaches(y + 4);
 
     // Pomodoro / minuteur
+    UI::separateur(Y_POMO - 52);
     UI::etiquette(MARGE, Y_POMO, "POMODORO");
     const PhasePomo ph = Minuteries::pomoPhase();
     char ligne[64];
@@ -115,10 +121,10 @@ class AppAccueil : public App {
       Dessin::texte(F_TEXTE, MARGE, Y_POMO + 50, ligne, GRIS_FONCE);
       UI::bouton(boite(ECRAN_L - MARGE - 150, Y_POMO - 36, 150, 56), "Démarrer", C_POMO_DEMARRER);
     }
-    UI::zone(boite(0, Y_POMO - 40, ECRAN_L - MARGE - 160, 132), C_POMODORO);
+    UI::zone(boite(0, Y_POMO - 40, ECRAN_L - MARGE - 160, Y_APPLIS - 8 - (Y_POMO - 40)), C_POMODORO);
 
     // Applications
-    UI::bouton(boite(MARGE, 860, ECRAN_L - 2 * MARGE, 76), "Applications", C_APPLIS, 0, STYLE_PLEIN);
+    UI::bouton(boite(MARGE, Y_APPLIS, ECRAN_L - 2 * MARGE, 76), "Applications", C_APPLIS, 0, STYLE_PLEIN);
   }
 
   void action(int code, int arg) override {
@@ -127,16 +133,28 @@ class AppAccueil : public App {
         if (Horloge::valide()) Systeme::ouvrir(appCalendrier());
         else Systeme::ouvrir(appReglagesPage(PAGE_WIFI));
         break;
+      case C_AGENDA:    Systeme::ouvrir(appCalendrier()); break;
       case C_TOUT_VOIR: Systeme::ouvrir(appTaches()); break;
       case C_POMODORO:  Systeme::ouvrir(appPomodoro()); break;
       case C_APPLIS:    Systeme::ouvrir(appMenu()); break;
+      case C_AJOUTER:
+        Systeme::ouvrir(appClavier("Pour aujourd'hui", "", TACHE_TITRE_MAX, SAISIE_LIGNE, rappelCapture, nullptr));
+        break;
       case C_POMO_DEMARRER:
         Minuteries::pomoDemarrer();
         Systeme::redessiner();
         break;
       case C_COCHER: {
         const Tache* t = Stockage::tache(arg);
-        if (t) Stockage::cocherTache(t->id, true);
+        if (!t) break;
+        const bool repetee = t->repetition != REP_AUCUNE;
+        Stockage::cocherTache(t->id, true);
+        if (repetee) {   // elle ne disparaît pas : son échéance a avancé
+          char d[24], m[48];
+          Horloge::texteDateRelative(d, sizeof(d), t->echeance);
+          snprintf(m, sizeof(m), "Revient %s", d);
+          Systeme::notifier(m);
+        }
         Systeme::redessiner();
         break;
       }
@@ -157,6 +175,113 @@ class AppAccueil : public App {
 
   bool retour() override { return true; }   // déjà tout en bas de la pile
 
+ private:
+  // « 14:30 », « En cours », « Demain 9:00 », « Lun. 2 nov. »…
+  static void texteQuand(const Evenement& e, char* b, size_t n) {
+    const int auj = Horloge::aujourdhui();
+    char hm[8] = "";
+    if (e.debut >= 0) texteMinutes(e.debut, hm, sizeof(hm));
+    if (e.date == auj) {
+      struct tm t;
+      Horloge::locale(t);
+      const int mn = t.tm_hour * 60 + t.tm_min;
+      if (e.debut < 0) snprintf(b, n, "Aujourd'hui");
+      else if (mn >= e.debut && e.fin > e.debut && mn < e.fin) snprintf(b, n, "En cours");
+      else snprintf(b, n, "%s", hm);
+      return;
+    }
+    char d[24];
+    Horloge::texteDateRelative(d, sizeof(d), e.date);
+    d[0] = (char)toupper((unsigned char)d[0]);
+    if (hm[0]) snprintf(b, n, "%s %s", d, hm);
+    else snprintf(b, n, "%s", d);
+  }
+
+  // Une ligne : icône, quand, titre. false (rien dessiné) sans agenda ou sans rendez-vous.
+  bool ligneRendezVous(int y) {
+    if (!Agenda::configure()) return false;
+    Evenement e;
+    if (!Agenda::prochainEvenement(e)) return false;
+    char quand[40];
+    texteQuand(e, quand, sizeof(quand));
+    Dessin::icone(ICONE_CALENDRIER, MARGE, y + 12, 2, GRIS_FONCE);   // 24 x 24
+    const int base = y + 32;
+    const int x = Dessin::texte(F_GRAS, MARGE + 38, base, quand, NOIR) + 12;
+    Dessin::texteTronque(F_TEXTE, x, base, ECRAN_L - MARGE - x, e.titre, NOIR);
+    UI::zone(boite(0, y, ECRAN_L, RDV_H), C_AGENDA);
+    return true;
+  }
+
+  // Section « Aujourd'hui » : en retard puis du jour (avec l'heure). S'il reste de la place,
+  // les suivantes (plus tard, date en gris, ou sans date) sous un pointillé.
+  void dessinerTaches(int y) {
+    UI::etiquette(MARGE, y + 48, "AUJOURD'HUI");
+    const Boite plus = boite(ECRAN_L - MARGE - 64, y + 8, 64, 50);
+    Dessin::chanfrein(plus.x, plus.y, plus.l, plus.h, CHANFREIN, TRAIT, NOIR);
+    Dessin::pictoPlus(plus.x + plus.l / 2, plus.y + plus.h / 2, 26, 5, NOIR);
+    UI::zone(boite(plus.x - 8, y, plus.l + 8 + MARGE, SECTION_H), C_AJOUTER);
+    const int xTv = plus.x - 20;
+    const int lTv = Dessin::largeur(F_GRAS, "Tout voir");
+    Dessin::texteDroite(F_GRAS, xTv, y + 44, "Tout voir", NOIR);
+    UI::zone(boite(xTv - lTv - 12, y + 4, lTv + 24, SECTION_H - 8), C_TOUT_VOIR);
+
+    int yy = y + SECTION_H;
+    const int nb = mini(NB_TACHES_MAX, (Y_FIN_TACHES - yy) / H_TACHE);
+    int idx[NB_TACHES_MAX];
+    const int nAuj = Stockage::tachesAujourdhui(idx, nb);
+    // Les tâches à faire triées commencent par les mêmes (retard et jour, même ordre) :
+    // on complète avec la suite.
+    int n = nAuj;
+    if (nAuj < nb) n = Stockage::listeTaches(TACHES_A_FAIRE, idx, nb);
+    if (n == 0) {
+      Dessin::texte(F_TEXTE, MARGE, yy + 42, "Rien à faire. Profite !", GRIS_FONCE);
+      return;
+    }
+    if (nAuj == 0) {   // rien aujourd'hui : on le dit, puis la suite
+      Dessin::texte(F_TEXTE, MARGE, yy + 42, "Rien pour aujourd'hui.", GRIS_FONCE);
+      yy += H_TACHE;
+      if (n > nb - 1) n = nb - 1;
+    }
+    const int auj = Horloge::aujourdhui();
+    for (int i = 0; i < n; i++) {
+      if (i == nAuj && i > 0) Dessin::pointille(MARGE, yy, ECRAN_L - 2 * MARGE, GRIS);
+      ligneTache(yy, idx[i], auj);
+      yy += H_TACHE;
+    }
+  }
+
+  void ligneTache(int y, int index, int auj) {
+    const Tache* ta = Stockage::tache(index);
+    if (!ta) return;
+    UI::caseACocher(MARGE, y + (H_TACHE - CASE_TAILLE) / 2, false);
+    UI::zone(boite(0, y, 84, H_TACHE), C_COCHER, index);
+    // À droite : l'heure (aujourd'hui), la date en noir (en retard), ou la date en gris (plus tard)
+    char d[40] = "";
+    char hm[8] = "";
+    if (ta->heure >= 0) texteMinutes(ta->heure, hm, sizeof(hm));
+    const GFXfont* pd = F_PETITE;
+    uint8_t cd = GRIS_FONCE;
+    if (ta->echeance == auj) {
+      strcpy(d, hm);
+      pd = F_GRAS;
+      cd = NOIR;
+    } else if (ta->echeance) {
+      char r[24];
+      Horloge::texteDateRelative(r, sizeof(r), ta->echeance);
+      if (hm[0]) snprintf(d, sizeof(d), "%s %s", r, hm);
+      else snprintf(d, sizeof(d), "%s", r);
+      if (ta->echeance < auj) cd = NOIR;
+    }
+    const GFXfont* p = policeTexte();
+    const int base = Dessin::baseCentree(p, y, H_TACHE);
+    int largeurDate = 0;
+    if (d[0]) {
+      largeurDate = Dessin::largeur(pd, d) + 12;
+      Dessin::texteDroite(pd, ECRAN_L - MARGE, base, d, cd);
+    }
+    Dessin::texteTronque(p, MARGE + 60, base, ECRAN_L - 2 * MARGE - 60 - largeurDate, ta->titre, NOIR);
+    UI::zone(boite(84, y, ECRAN_L - 84, H_TACHE), C_TACHE, index);
+  }
 };
 
 AppAccueil g_accueil;

@@ -1,6 +1,7 @@
 #include "reseau.h"
 #include "horloge.h"
 #include "parametres.h"
+#include "agenda.h"
 #include <WiFi.h>
 #include <Preferences.h>
 
@@ -28,6 +29,9 @@ static char s_ssid[33] = "";
 static char s_mdp[65] = "";
 static char s_texte[80] = "Éteint";
 static uint32_t s_synchroAvant = 0;
+static bool s_garde = false;          // Accès depuis l'ordinateur : rester connecté
+static bool s_agendaDemande = false;  // mise à jour de l'agenda à faire dès que possible
+static bool s_agendaFait = false;     // agenda déjà tenté pendant cette connexion
 
 static void copier(char* d, size_t n, const char* s) {
   strncpy(d, s ? s : "", n - 1);
@@ -38,7 +42,7 @@ static void allumer() {
   if (WiFi.getMode() == WIFI_OFF) {
     WiFi.persistent(false);   // les identifiants sont gérés ici, pas par la pile Wi-Fi
     WiFi.mode(WIFI_STA);
-    WiFi.setSleep(true);
+    WiFi.setSleep(!s_garde);  // économie d'énergie de la radio, sauf pour l'accès depuis l'ordinateur
   }
 }
 
@@ -157,6 +161,7 @@ void oublier(int index) {
 // --- Actions ------------------------------------------------------------------
 static void echec(const char* message) {
   radioOff();
+  s_agendaDemande = false;
   s_etat = RESEAU_ECHEC;
   copier(s_texte, sizeof(s_texte), message);
   JOURNAL("[wifi] %s", message);
@@ -164,23 +169,69 @@ static void echec(const char* message) {
 
 void eteindre() {
   radioOff();
+  s_agendaDemande = false;
   s_etat = RESEAU_ETEINT;
   copier(s_texte, sizeof(s_texte), "Éteint");
 }
 
-void synchroniserHeure() {
-  if (occupe() || s_etat == RESEAU_CONNECTE) return;
+// Cherche les réseaux connus à portée ; boucle() se connecte ensuite au meilleur.
+static bool lancerRecherche() {
   if (nbConnus() == 0) {
     copier(s_texte, sizeof(s_texte), "Aucun réseau enregistré");
-    return;
+    return false;
   }
   allumer();
   WiFi.scanNetworks(true);
   s_etat = RESEAU_RECHERCHE;
   s_t0 = millis();
-  s_pourHeure = Param.wifiMode != 2;
+  s_pourHeure = Param.wifiMode != 2 && !s_garde;
   s_memoriser = false;
   copier(s_texte, sizeof(s_texte), "Recherche des réseaux…");
+  return true;
+}
+
+void synchroniserHeure() {
+  if (occupe() || s_etat == RESEAU_CONNECTE) return;
+  lancerRecherche();
+}
+
+// --- Accès depuis l'ordinateur et agenda (28/10/2026) ----------------------------
+bool garde() { return s_garde; }
+bool agendaEnCours() { return s_agendaDemande; }
+
+void garderConnecte() {
+  s_garde = true;
+  s_pourHeure = false;
+  if (actif()) WiFi.setSleep(false);
+  if (s_etat == RESEAU_CONNECTE || s_etat == RESEAU_RECHERCHE || s_etat == RESEAU_CONNEXION) return;
+  if (s_etat == RESEAU_SCAN) return;   // scan de Réglages en cours : Acces réessaiera
+  lancerRecherche();
+}
+
+void liberer() {
+  if (!s_garde) return;
+  s_garde = false;
+  if (actif()) WiFi.setSleep(true);
+  if (Param.wifiMode == 2) return;     // « toujours » : on reste connecté
+  if (s_agendaDemande && (s_etat == RESEAU_RECHERCHE || s_etat == RESEAU_CONNEXION || s_etat == RESEAU_CONNECTE)) {
+    s_pourHeure = true;                // l'agenda d'abord, puis extinction comme après la mise à l'heure
+    return;
+  }
+  if (actif()) eteindre();
+}
+
+void mettreAJourAgenda() {
+  if (!Agenda::configure() || s_etat == RESEAU_SCAN) return;
+  s_agendaDemande = true;
+  if (s_etat == RESEAU_CONNECTE || s_etat == RESEAU_RECHERCHE || s_etat == RESEAU_CONNEXION) return;
+  if (!lancerRecherche()) s_agendaDemande = false;
+}
+
+// Bloquant (quelques secondes) : téléchargement et lecture du fichier iCal.
+static void synchroniserAgenda() {
+  s_agendaDemande = false;
+  s_agendaFait = true;
+  Agenda::synchroniser();
 }
 
 void connecter(const char* ssid, const char* mdp, bool memoriserReseau) {
@@ -193,7 +244,7 @@ void connecter(const char* ssid, const char* mdp, bool memoriserReseau) {
   s_etat = RESEAU_CONNEXION;
   s_t0 = millis();
   s_memoriser = memoriserReseau;
-  s_pourHeure = Param.wifiMode != 2;
+  s_pourHeure = Param.wifiMode != 2 && !s_garde;
   snprintf(s_texte, sizeof(s_texte), "Connexion à %s…", s_ssid);
 }
 
@@ -282,6 +333,7 @@ void boucle() {
         JOURNAL("[wifi] %s, IP %s", s_texte, WiFi.localIP().toString().c_str());
         if (s_memoriser) memoriser(s_ssid, s_mdp);
         s_synchroAvant = Horloge::derniereSynchro();
+        s_agendaFait = false;
         Horloge::lancerNTP(Param.ntp);
       } else if (st == WL_CONNECT_FAILED || st == WL_NO_SSID_AVAIL || m - s_t0 > DELAI_CONNEXION_MS) {
         char msg[80];
@@ -290,19 +342,26 @@ void boucle() {
       }
       break;
     }
-    case RESEAU_CONNECTE:
+    case RESEAU_CONNECTE: {
       if (WiFi.status() != WL_CONNECTED) {
         echec("Connexion perdue");
         break;
       }
-      if (s_pourHeure) {
-        const bool heureRecue = Horloge::derniereSynchro() != s_synchroAvant;
-        if (heureRecue || m - s_t0 > DELAI_NTP_MS) {
-          eteindre();
-          copier(s_texte, sizeof(s_texte), heureRecue ? "Heure synchronisée" : "Pas de réponse NTP");
-        }
+      const bool heureRecue = Horloge::derniereSynchro() != s_synchroAvant;
+      // Agenda : demandé (dès que l'heure est crédible, il en faut une pour la fenêtre J-1..J+60),
+      // ou une fois par connexion après une mise à l'heure réussie s'il date de plus de 3 h.
+      if (s_agendaDemande && Horloge::valide()) {
+        synchroniserAgenda();
+      } else if (heureRecue && !s_agendaFait && Agenda::aSynchroniser()) {
+        synchroniserAgenda();
+      }
+      if (s_agendaDemande && millis() - s_t0 > DELAI_NTP_MS) s_agendaDemande = false;   // jamais d'heure : abandon
+      if (s_pourHeure && !s_garde && !s_agendaDemande && (heureRecue || millis() - s_t0 > DELAI_NTP_MS)) {
+        eteindre();
+        copier(s_texte, sizeof(s_texte), heureRecue ? "Heure synchronisée" : "Pas de réponse NTP");
       }
       break;
+    }
     case RESEAU_SCAN: {
       const int n = WiFi.scanComplete();
       if (n == WIFI_SCAN_RUNNING) {

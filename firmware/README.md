@@ -14,16 +14,21 @@ synchronisation future.
 
 | Appli | Fonctions |
 |---|---|
-| **Accueil** | grande horloge, date, Pamk et salutation (avec ton prénom), 3 prochaines tâches à cocher, état du Pomodoro, bouton Applications |
-| **Applications** | 6 grandes tuiles avec icônes pixel |
-| **Tâches** | onglets « À faire » / « Faites », ajout au clavier, cocher, détail : modifier le titre, échéance (aucune, aujourd'hui, demain, +7 j, ±1 jour), dates de création et de modification, suppression (aussi par appui long) |
+| **Accueil** | grande horloge, date, Pamk et salutation (avec ton prénom), prochain rendez-vous de l'agenda, **« Aujourd'hui »** (tâches en retard et du jour, avec l'heure), **« + » de capture rapide**, état du Pomodoro, bouton Applications |
+| **Applications** | 8 tuiles avec icônes pixel |
+| **Tâches** | onglets « À faire » / « Faites », ajout au clavier, cocher, détail : titre, échéance, **heure, rappel à l'heure, répétition** (chaque jour, jours ouvrés, chaque semaine, chaque mois : cocher fait revenir la tâche à la prochaine fois), dates, suppression (aussi par appui long) |
+| **Rappels** | écran noir à l'heure prévue (même en veille ou en sommeil profond), boutons « Fait », « Dans 10 min », « Fermer » |
 | **Notes** | liste (la plus récente d'abord, aperçu), lecture page par page, écriture et modification au clavier (4000 caractères), suppression |
-| **Pomodoro** | travail / pause / grande pause réglables, pause lancée automatiquement, carrés de progression des cycles, fin affichée sur un **écran noir** (même si le téléphone dormait) |
+| **Recherche** | dans les tâches et les notes, sans tenir compte des majuscules ni des accents |
+| **Pomodoro** | travail / pause / grande pause réglables, **« Sur quoi tu travailles ? »** (choix d'une tâche), **mode Concentration** pendant le travail (temps restant en très grand, la tâche, « Tâche faite »), fin affichée sur un **écran noir** (même si le téléphone dormait) |
 | **Minuteur** | durées rapides (1 à 60 min), ± 1 / ± 5 min, pause, fin visuelle |
-| **Calendrier** | vue du mois (aujourd'hui en noir, petits carrés = tâches à faire), toucher un jour = ses tâches, ajout d'une tâche à ce jour |
+| **Bilan** | la semaine : minutes de concentration par jour (histogramme), pomodoros, tâches faites, jours d'affilée, comparaison avec la semaine d'avant |
+| **Calendrier** | vue du mois (aujourd'hui en noir, petits carrés = tâches, trait = rendez-vous), toucher un jour = ses rendez-vous puis ses tâches, ajout d'une tâche à ce jour, « Mettre à jour l'agenda » |
+| **Agenda** | ton Google Agenda (ou tout agenda iCal) **en lecture seule**, par son adresse secrète iCal, mis à jour avec la mise à l'heure Wi-Fi |
 | **Calculatrice** | + − × ÷ avec priorités, %, ±, virgule, aperçu du résultat, effacer (appui long = tout effacer) |
-| **Réglages** | Wi-Fi (scan, mot de passe au clavier, 4 réseaux mémorisés, mode éteint / auto / toujours), heure (NTP, fuseau, réglage à la main), écran (retourner, mise à jour pixel par pixel ou douce, image complète automatique optionnelle, nettoyage, mire de gris), veille et batterie, Pomodoro, boutons (inverser, test), prénom, à propos, données (tout effacer) |
-| **Système** | barre d'état (heure, Pomodoro en cours, Wi-Fi, batterie), clavier AZERTY (accents é è ê ë à â ç ù û î ï ô œ æ…, chiffres, symboles), veille légère entre deux actions, **sommeil profond** avec écran de veille qui reste affiché (Pamk endormi, heure, tâches), heure de l'écran de veille mise à jour toutes les 15 min, écran « éteint », écran batterie vide, console série |
+| **Accès depuis l'ordinateur** | page web sur ton Wi-Fi (tâches, notes, sauvegarde, adresse de l'agenda, envoi d'un firmware) et mise à jour sans fil depuis l'Arduino IDE, protégées par un code à 4 chiffres affiché sur l'écran |
+| **Réglages** | Wi-Fi, heure, écran (retourner, mise à jour, image complète auto, **réaction au toucher, clavier rapide, taille du texte**, nettoyage, mire), veille et batterie (**mode nuit, sommeil profond après N heures, autonomie estimée**), Pomodoro, prénom, à propos (revoir le premier démarrage), données (accès depuis l'ordinateur, tout effacer) |
+| **Système** | **premier démarrage guidé**, barre d'état (heure, Pomodoro en cours, Wi-Fi, batterie), clavier AZERTY (accents, chiffres, symboles), veille légère entre deux actions, écran de veille qui reste affiché (Pamk endormi, heure, rendez-vous, tâches), écran « éteint », écran batterie vide, console série |
 
 ## 1. Ce qu'il faut installer
 
@@ -137,6 +142,17 @@ sur **RST**, relâcher RST, puis relâcher BOOT ; téléverser ; appuyer sur RST
 
 ## 5. Utilisation
 
+**Pour l'instant, pas de boutons poussoirs** (`BOUTONS_PRESENTS = false` dans `config.h`) : tout
+se fait au tactile. La veille se lance seule (ou Réglages → Veille et batterie → Mettre en
+veille) et **se réveille au toucher** (veille légère : le tactile reste allumé). Après
+« Sommeil profond » heures sans contact (4 h par défaut), le téléphone passe en sommeil
+profond pour économiser la batterie : il se réveille alors avec le petit bouton
+`SENSOR_VN` de la carte. « Éteindre » : rallumer avec le bouton RST de la carte.
+**Mode nuit** (23 h - 7 h, par défaut) : l'heure de l'écran de veille ne bouge plus et le
+Wi-Fi ne se met pas à l'heure tout seul.
+
+Quand les boutons seront câblés (`BOUTONS_PRESENTS = true`) :
+
 | Action | Effet |
 |---|---|
 | Marche, appui court | veille (écran de veille, sommeil profond) ; réveil par un appui |
@@ -146,15 +162,38 @@ sur **RST**, relâcher RST, puis relâcher BOOT ; téléverser ; appuyer sur RST
 | Volume + long | accueil |
 | Volume − long | retour |
 | Volume + et − ensemble | accueil |
+
+Au tactile (toujours) :
+
+| Action | Effet |
+|---|---|
+| Toucher un bouton | il s'inverse tout de suite (réaction au toucher), puis l'action se fait |
 | Chevron en haut à gauche | retour (appui long : accueil) |
 | Glisser depuis le bord gauche vers la droite | retour |
 | Glisser à gauche / à droite, en haut / en bas | page suivante / précédente |
 | Appui long sur une tâche ou une note | supprimer (avec confirmation) |
 
 Le clavier : `?123` chiffres, `àç` accents, `=\<` symboles, flèche = majuscule (un appui =
-une lettre, deux = verrouillé), appui long sur effacer = efface le mot. Taper à la fin du
-texte ne fait **jamais flasher** l'écran (seuls des pixels noircissent) ; déplacer le curseur
-(toucher le texte, ou volume + / −) ne change que les pixels du curseur.
+une lettre, deux = verrouillé), appui long sur effacer = efface le mot. **Clavier rapide**
+(par défaut) : chaque lettre s'affiche tout de suite en noir et blanc pur, et les bords gris
+des lettres sont corrigés 1,5 s après la dernière frappe, sans clignoter.
+
+### Accès depuis l'ordinateur
+
+Réglages → Données → **Accès depuis l'ordinateur** : le téléphone se connecte à ton Wi-Fi
+connu et affiche une adresse (ou `http://pamk-phone.local`) et un **code à 4 chiffres**. Tout
+s'arrête quand tu quittes cet écran (ou après 10 min sans rien).
+- **Page web** (même Wi-Fi) : tâches (ajouter, renommer, cocher, échéance, heure, répétition,
+  supprimer), notes, **« Télécharger la sauvegarde »** (JSON), adresse de l'agenda, envoi d'un
+  firmware `.bin` (Croquis → Exporter les binaires compilés).
+- **Mise à jour sans fil depuis l'Arduino IDE** : écran ouvert, Outils → Port → port réseau
+  « pamk-phone », téléverser, mot de passe = le code. Le pare-feu Windows doit laisser passer
+  l'outil de téléversement (le téléphone se reconnecte au PC).
+- **Agenda** : sur calendar.google.com (ordinateur) → Paramètres → ton agenda → « Intégrer
+  l'agenda » → **« Adresse secrète au format iCal »**, à coller dans la page. Cette adresse
+  donne accès à ton agenda : elle reste dans le téléphone et n'apparaît jamais dans la
+  console. Laisse « Core Debug Level » sur « None » dans l'IDE (sinon les journaux du cœur
+  pourraient l'afficher).
 
 ## 6. Console série (115200 bauds)
 
@@ -179,6 +218,33 @@ Pendant le débogage : la veille légère se coupe toute seule quand un ordinate
 branché en USB, et la veille automatique aussi (réglable : Réglages → Veille et batterie).
 
 ## 7. À tester en premier sur la vraie carte
+
+### Version 0.2 (28/10/2026)
+
+1. **Compilation** : la taille doit rester sous 3 Mo (partition d'application). Si le moniteur
+   série affiche « Stack canary watchpoint triggered (loopTask) » pendant la mise à jour de
+   l'agenda, augmenter `SET_LOOP_TASK_STACK_SIZE` dans `PamkPhone.ino`.
+2. **Réaction au toucher** : le bouton touché s'inverse sous le doigt (orientations 0 et 1),
+   puis revient propre (pas de rectangle gris), aussi en mode doux.
+3. **Clavier rapide** : lettres tout de suite noires, puis 1,5 s après la frappe, plus de bord
+   gris et **aucun clignotement**. Trace grise sur une lettre effacée : `RAPIDE_TRAMES` 5 ou 6
+   (`ecran.cpp`). Lettres trop grasses après correction : `ECART_DIRECT_MAX` 4 ou 5.
+4. **Image complète auto** : après beaucoup de navigation, « complet (usure) » (Réglages →
+   Écran, dernière ligne) arrive sur un changement de page, jamais sur un petit changement.
+5. **Rappels** : une tâche avec heure à +2 min et rappel : écran allumé, en veille, après un
+   redémarrage (pas de doublon) ; « Dans 10 min », « Fait ». Répétitions (quotidienne, jours
+   ouvrés cochée un vendredi, mensuelle).
+6. **Accès depuis l'ordinateur** : page web (code, 5 codes faux = pause 1 min), tâches et
+   notes modifiées depuis le PC, sauvegarde, adresse iCal puis agenda dans le calendrier et
+   sur l'écran de veille ; envoi d'un `.bin` et mise à jour sans fil depuis l'IDE.
+7. **Pomodoro** (travail à 1 min) : choix de la tâche, mode Concentration, « Tâche faite »,
+   puis le Bilan (1 min, 1 pomodoro).
+8. **Veille** : toucher pour réveiller ; mode nuit ; « Sommeil profond » à 1 h pour l'essai
+   puis réveil avec le bouton `SENSOR_VN`.
+9. **Taille du texte grande** : tâches, notes (lecture longue), clavier, accueil.
+10. **Premier démarrage guidé** : Réglages → À propos → Revoir le premier démarrage.
+
+### Version 0.1
 
 Dans l'ordre (les points les plus incertains d'abord) :
 
@@ -267,14 +333,23 @@ par colonnes (deux groupes à moins de 110 px sont fusionnés, 3 groupes au plus
 Ordres de grandeur : une case cochée ≈ 0,2 s, un caractère tapé ≈ 0,2 s, l'heure de
 l'accueil ≈ 1 s, une page entière ≈ 2 s.
 
+**Nettoyage fort (28/10)** : un pixel à nettoyer n'est plus poussé par `epd_draw_image`
+(15 trames très courtes, trop faibles : zones un peu grises), mais par nos propres trames
+(`pousserMasque()` dans `ecran.cpp`) : 4 × 50 µs au noir puis 4 × 50 µs au blanc, comme un
+cycle de `epd_clear()`, sur ces pixels seulement. Une lettre ou une forme qui change en partie
+est nettoyée en entier (`etendreNettoyage()`) : plus de morceaux noirs pendant l'étape blanche.
+`MAJ_NETTOYAGE_FORT = false` dans `config.h` remet l'ancien nettoyage en secours.
+
+**Chemin rapide** (clavier, réaction au toucher) : les pixels qui changent vont directement au
+noir ou au blanc en 4 trames, sans nettoyage ; le rafraîchissement normal suivant corrige les
+gris sans clignoter.
+
 **Image complète** (tout l'écran clignote, `epd_clear()` + image) seulement :
 - au premier affichage après un démarrage à froid (contenu de la dalle inconnu) ;
 - sur demande : Réglages → Écran → Nettoyer l'écran (séquence plus longue) ou `rafraichir` ;
-- en option, **Réglages → Écran → Image complète auto** : « jamais » (**défaut**),
-  « à la veille » (à chaque mise en veille), « toutes les 50 » mises à jour.
-  Le défaut est « jamais » parce que chaque pixel changé est déjà nettoyé : les pixels qui ne
-  changent pas ne sont jamais pilotés et ne se dégradent pas. Si des traces apparaissent avec
-  le temps, choisir « à la veille » : le nettoyage complet a lieu quand on range le téléphone.
+- selon **Réglages → Écran → Image complète auto** : « auto » (**défaut**) = quand l'écran a
+  beaucoup servi, au moment d'un changement de page ; ou « jamais », « à la veille »,
+  « toutes les 50 » mises à jour.
 
 Au réveil, il n'y a pas non plus d'image complète : l'écran de veille (ou « Éteint ») est
 mémorisé en mémoire RTC avant le sommeil (`ecrans.cpp`), redessiné à l'identique au réveil,
@@ -288,12 +363,16 @@ Rien ne s'anime en continu ; l'heure n'est redessinée qu'au changement de minut
 `/taches.json` et `/notes.json` sur la partition FFat, écrits dans un `.tmp` puis renommés
 (un fichier illisible est mis de côté en `.abime`). Chaque élément : `id` (16 caractères
 hexadécimaux aléatoires), `cree` et `maj` (secondes UTC), et `supprimees` garde les 100
-dernières suppressions (`id` + date). Réglages et réseaux Wi-Fi : NVS (`Preferences`).
+dernières suppressions (`id` + date). Une tâche a aussi `heure` (« 14:30 » ou null),
+`repetition` (« aucune », « jour », « semaine », « mois », « jours_ouvres ») et `rappel`
+(les anciens fichiers se chargent sans perte). `/stats.json` : 35 derniers jours du bilan.
+`/agenda.json` : l'agenda téléchargé (J-1 à J+60). Réglages et réseaux Wi-Fi : NVS
+(`Preferences`, réglages en « version 3 »).
 
 ### Polices
 
-Barlow (Regular, Medium, SemiBold) pour le texte et VT323 (pixel) pour l'heure et les
-titres, licence SIL OFL 1.1 (`PamkPhone/src/polices/OFL-*.txt`). Latin-1 complet + œ Œ Ÿ €
+Barlow (Regular, Medium, SemiBold ; Regular et SemiBold aussi en 36 px pour la grande taille
+de texte) pour le texte et VT323 (pixel) pour l'heure et les titres, licence SIL OFL 1.1 (`PamkPhone/src/polices/OFL-*.txt`). Latin-1 complet + œ Œ Ÿ €
 – — ‘ ’ “ ” • … −. Générées par `outils/generer_polices.py`, qui produit exactement le même
 format que `scripts/fontconvert.py` de LilyGo-EPD47 (vérifié octet par octet). Pour les
 régénérer (venv local, rien de global) :
@@ -314,12 +393,15 @@ cd A:\bernon\Robotique\Pamk_Phone\firmware; _ref\.venv\Scripts\python.exe outils
 
 | État | Consommation | Remarque |
 |---|---|---|
+| veille au toucher (sans bouton) | plus que le sommeil profond (tactile allumé, à mesurer) | après « Sommeil profond » heures, passe au sommeil profond |
 | sommeil profond | ~0,4 mA (mesure LilyGO) | l'écran garde l'image sans courant |
 | réveil de l'heure (15 min) | ~2 s à ~70 mA (estimation) | ≈ 5 mAh par jour |
 | allumé, au repos | quelques mA en veille légère (à mesurer) | réveil toutes les 40 ms pour lire le tactile |
 | rafraîchissement | ~1 à 2 s | la dalle n'est alimentée que pendant le dessin |
 
 Avec 2000 mAh, plusieurs semaines d'usage léger sont réalistes ; à confirmer à la mesure.
+Réglages → Veille et batterie affiche une **autonomie estimée** d'après la baisse de la
+batterie (sur batterie, après au moins 2 h et 3 % de baisse).
 
 ## 10. Licences
 

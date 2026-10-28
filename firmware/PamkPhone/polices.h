@@ -10,3 +10,7 @@ extern const GFXfont* const F_PIXEL;    // VT323 50 px : étiquettes pixel, heur
 extern const GFXfont* const F_TITRE;    // VT323 75 px : titres d'écran
 extern const GFXfont* const F_GRANDE;   // VT323 125 px : grands chiffres (ASCII + × ÷ −)
 extern const GFXfont* const F_HORLOGE;  // VT323 200 px : horloge (chiffres, « : », « - »)
+
+// Taille du texte réglable (Param.tailleTexte, 28/10/2026) : polices des listes et des notes.
+const GFXfont* policeTexte();           // F_TEXTE, ou une version plus grande
+const GFXfont* policeGras();            // F_GRAS, ou une version plus grande

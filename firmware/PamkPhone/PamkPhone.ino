@@ -17,10 +17,16 @@
 //    horloge.*         RTC PCF8563, NTP, fuseau, dates en français
 //    reseau.*          Wi-Fi à la demande ; stockage.* : JSON sur FFat ; parametres.* : NVS
 //    minuteries.*      Pomodoro et minuteur (continuent pendant la veille)
+//    stats.*           bilan de la semaine ; agenda.* : agenda iCal en lecture seule
+//    acces.*           page web et mise à jour sans fil (écran « Accès depuis l'ordinateur »)
 //    app_*.cpp         une application par fichier ; console.* : console série
 // =============================================================================
 #include "config.h"
 #include "systeme.h"
+
+// La connexion HTTPS de l'agenda (agenda.cpp) se fait dans loop() : la poignée de main TLS
+// demande plus que les 8 Kio de pile par défaut de la tâche de loop().
+SET_LOOP_TASK_STACK_SIZE(16 * 1024);
 
 void setup() {
   Systeme::demarrer();

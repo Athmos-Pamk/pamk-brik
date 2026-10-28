@@ -30,6 +30,7 @@ namespace UI {
 void viderZones();
 void zone(const Boite& b, int code, int arg = 0);
 bool chercher(int x, int y, int& code, int& arg);
+bool chercherZone(int x, int y, Boite& b);   // la zone qui recevrait ce toucher (28/10/2026)
 int nbZones();
 
 void barreEtat(bool afficherHeure);

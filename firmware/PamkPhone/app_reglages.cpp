@@ -9,6 +9,9 @@
 #include "stockage.h"
 #include "parametres.h"
 #include "tactile.h"
+#include "polices.h"
+#include "stats.h"
+#include "agenda.h"
 #include <esp_heap_caps.h>
 
 namespace {
@@ -17,11 +20,11 @@ enum Code {
   P_WIFI, P_HEURE, P_ECRAN, P_ENERGIE, P_POMODORO, P_BOUTONS, P_PRENOM, P_APROPOS, P_DONNEES,
   W_MODE, W_SYNCHRO, W_CHERCHER, W_OUBLIER, W_RESEAU, W_ETEINDRE,
   H_FUSEAU, H_NTP, H_PLUS, H_MOINS, H_ENREGISTRER,
-  E_ORIENTATION, E_MODE, E_COMPLET, E_NETTOYER, E_MIRE,
-  N_VEILLE, N_HORLOGE, N_LEGERE, N_USB, N_DORMIR, N_ETEINDRE,
+  E_ORIENTATION, E_MODE, E_COMPLET, E_NETTOYER, E_MIRE, E_TOUCHER, E_CLAVIER, E_TAILLE,
+  N_VEILLE, N_HORLOGE, N_LEGERE, N_USB, N_DORMIR, N_ETEINDRE, N_NUIT, N_PROFOND,
   O_MOINS, O_PLUS,
   B_INVERSER,
-  D_EFFACER,
+  D_EFFACER, D_ACCES, A_ASSISTANT,
   M_FERMER,
 };
 
@@ -46,6 +49,7 @@ const int NB_FUSEAUX = sizeof(FUSEAUX) / sizeof(FUSEAUX[0]);
 
 const uint16_t VEILLES[] = {30, 60, 120, 300, 600, 0};
 const uint8_t HORLOGES[] = {0, 5, 15, 30, 60};
+const uint8_t PROFONDS[] = {0, 1, 2, 4, 8, 12};   // heures de veille avant le sommeil profond
 
 const char* nomFuseau() {
   for (int i = 0; i < NB_FUSEAUX; i++) if (strcmp(Param.fuseau, FUSEAUX[i].regle) == 0) return FUSEAUX[i].nom;
@@ -154,7 +158,10 @@ class AppReglages : public App {
         Systeme::redessiner(true);
         break;
       case E_MODE: Param.modeMaj = Param.modeMaj == MAJ_DOUX ? MAJ_PIXELS : MAJ_DOUX; sauver = true; break;
-      case E_COMPLET: Param.nettoyageAuto = (uint8_t)((Param.nettoyageAuto + 1) % 3); sauver = true; break;
+      case E_COMPLET: Param.nettoyageAuto = (uint8_t)((Param.nettoyageAuto + 1) % 4); sauver = true; break;
+      case E_TOUCHER: Param.retourToucher = !Param.retourToucher; sauver = true; break;
+      case E_CLAVIER: Param.clavierRapide = !Param.clavierRapide; sauver = true; break;
+      case E_TAILLE: Param.tailleTexte = Param.tailleTexte ? 0 : 1; sauver = true; break;
       case E_NETTOYER: Systeme::nettoyerEcran(); return;
       case E_MIRE: aller(PAGE_MIRE); return;
       case M_FERMER: m_page = PAGE_ECRAN; Systeme::redessiner(); return;
@@ -169,6 +176,8 @@ class AppReglages : public App {
       case N_HORLOGE: Param.horlogeVeilleMin = suivant(HORLOGES, 5, Param.horlogeVeilleMin); sauver = true; break;
       case N_LEGERE: Param.veilleLegere = !Param.veilleLegere; sauver = true; break;
       case N_USB: Param.veilleSurUSB = !Param.veilleSurUSB; sauver = true; break;
+      case N_NUIT: Param.ecoNuit = !Param.ecoNuit; sauver = true; break;
+      case N_PROFOND: Param.sommeilApresH = suivant(PROFONDS, 6, Param.sommeilApresH); sauver = true; break;
       case N_DORMIR: Systeme::mettreEnVeille(); return;
       case N_ETEINDRE: Systeme::eteindre(); return;
       // --- Pomodoro
@@ -177,6 +186,8 @@ class AppReglages : public App {
       // --- Boutons
       case B_INVERSER: Param.inverserVolume = !Param.inverserVolume; sauver = true; break;
       // --- Données
+      case D_ACCES: Systeme::ouvrir(appAcces()); return;
+      case A_ASSISTANT: Systeme::ouvrir(appAssistant()); return;
       case D_EFFACER:
         Systeme::ouvrir(appDialogue("Tout effacer ?",
                                     "Tâches, notes, réglages et réseaux Wi-Fi seront effacés, puis le téléphone redémarre.",
@@ -296,6 +307,8 @@ class AppReglages : public App {
     (void)ctx;
     if (!oui) return;
     Stockage::toutEffacer();
+    Stats::effacer();
+    Agenda::effacer();
     effacerParametres();
     Systeme::redemarrer();
   }
@@ -428,19 +441,19 @@ class AppReglages : public App {
     int y = CONTENU_Y;
     UI::ligneReglage(y, "Retourner l'écran", Param.orientation == ORIENTATION_DEFAUT ? "non" : "oui", E_ORIENTATION); y += RANG_H;
     UI::ligneReglage(y, "Mise à jour", Param.modeMaj == MAJ_DOUX ? "douce" : "pixel par pixel", E_MODE); y += RANG_H;
-    static const char* const AUTO[3] = {"jamais", "à la veille", "toutes les 50"};
-    UI::ligneReglage(y, "Image complète auto", AUTO[Param.nettoyageAuto % 3], E_COMPLET); y += RANG_H;
+    static const char* const AUTO[4] = {"jamais", "à la veille", "toutes les 50", "auto"};
+    UI::ligneReglage(y, "Image complète auto", AUTO[Param.nettoyageAuto % 4], E_COMPLET); y += RANG_H;
+    UI::ligneInterrupteur(y, "Réaction au toucher", Param.retourToucher, E_TOUCHER); y += RANG_H;
+    UI::ligneInterrupteur(y, "Clavier rapide", Param.clavierRapide, E_CLAVIER); y += RANG_H;
+    UI::ligneReglage(y, "Taille du texte", Param.tailleTexte ? "grande" : "normale", E_TAILLE); y += RANG_H;
     UI::ligneReglage(y, "Nettoyer l'écran", "", E_NETTOYER); y += RANG_H;
     UI::ligneReglage(y, "Mire de gris", "test", E_MIRE); y += RANG_H;
-    y += 30;
+    y += 26;
     const char* aide[] = {
-      "Pixel par pixel : seuls les pixels qui changent bougent ;",
-      "ceux qui n'étaient pas blancs clignotent une fois.",
-      "Douce : aucun clignotement, mais des traces peuvent rester.",
-      "Image complète : tout l'écran clignote et repart propre.",
-      "Taper du texte à la fin ne fait jamais clignoter.",
+      "Image complète auto : l'écran repart propre quand il a",
+      "beaucoup servi, au moment d'un changement de page.",
     };
-    for (int i = 0; i < 5; i++) Dessin::texte(F_PETITE, MARGE, y + i * 30, aide[i], GRIS_FONCE);
+    for (int i = 0; i < 2; i++) Dessin::texte(F_PETITE, MARGE, y + i * 30, aide[i], GRIS_FONCE);
     char info[112];
     snprintf(info, sizeof(info), "Dernière mise à jour : %s, %lu ms", Ecran::dernierMode(),
              (unsigned long)Ecran::dureeDerniereMs());
@@ -471,7 +484,11 @@ class AppReglages : public App {
     UI::ligneReglage(y, "Heure en veille", v, N_HORLOGE); y += RANG_H;
     UI::ligneInterrupteur(y, "Veille légère", Param.veilleLegere, N_LEGERE); y += RANG_H;
     UI::ligneInterrupteur(y, "Veille même branché au PC", Param.veilleSurUSB, N_USB); y += RANG_H;
-    y += 24;
+    UI::ligneInterrupteur(y, "Mode nuit (23 h - 7 h)", Param.ecoNuit, N_NUIT); y += RANG_H;
+    if (Param.sommeilApresH) snprintf(v, sizeof(v), "après %u h", (unsigned)Param.sommeilApresH);
+    else snprintf(v, sizeof(v), "jamais");
+    UI::ligneReglage(y, "Sommeil profond", v, N_PROFOND); y += RANG_H;
+    y += 4;
     UI::etiquette(MARGE, y + 20, "BATTERIE");
     char b[64];
     if (Energie::mesureValide()) {
@@ -484,7 +501,12 @@ class AppReglages : public App {
     const char* usb = Energie::usbOrdinateur() ? "Ordinateur USB détecté" :
                       (Energie::enCharge() ? "Tension de charge (USB branché ?)" : "Sur batterie");
     Dessin::texte(F_PETITE, MARGE, y + 100, usb, GRIS_FONCE);
-    Dessin::texte(F_PETITE, MARGE, y + 130, "L'heure en veille réveille la carte quelques secondes.", GRIS_FONCE);
+    char autonomie[48];
+    if (Energie::texteAutonomie(autonomie, sizeof(autonomie))) {
+      char ligne[72];
+      snprintf(ligne, sizeof(ligne), "Autonomie estimée : %s", autonomie);
+      Dessin::texte(F_PETITE, MARGE, y + 130, ligne, GRIS_FONCE);
+    }
     const int lb = (ECRAN_L - 2 * MARGE - 16) / 2;
     UI::bouton(boite(MARGE, 836, lb, 76), "Mettre en veille", N_DORMIR);
     UI::bouton(boite(MARGE + lb + 16, 836, lb, 76), "Éteindre", N_ETEINDRE);
@@ -565,6 +587,7 @@ class AppReglages : public App {
     snprintf(l[8], 80, "Polices Barlow et VT323 (SIL OFL 1.1)");
     snprintf(l[9], 80, "Pilote d'écran LilyGo-EPD47 1.1.0 (GPL-3.0)");
     for (int i = 0; i < 10; i++) Dessin::texte(F_PETITE, MARGE, CONTENU_Y + 270 + i * 36, l[i], i < 8 ? NOIR : GRIS_FONCE);
+    UI::bouton(boite(MARGE, 836, ECRAN_L - 2 * MARGE, 76), "Revoir le premier démarrage", A_ASSISTANT);
   }
 
   void pageDonnees() {
@@ -584,11 +607,12 @@ class AppReglages : public App {
       "Chaque tâche et chaque note a un identifiant et",
       "une date de modification ; les suppressions sont notées.",
       "",
-      "Sauvegarde : branche le téléphone à l'ordinateur,",
-      "ouvre le moniteur série (115200 bauds) et tape",
-      "« export » : tout sort en JSON.",
+      "Sauvegarde : « Accès depuis l'ordinateur » ouvre une",
+      "page web pour tout lire, modifier et télécharger.",
+      "(Ou « export » dans le moniteur série, 115200 bauds.)",
     };
     for (int i = 0; i < 6; i++) Dessin::texte(F_PETITE, MARGE, y + i * 30, aide[i], GRIS_FONCE);
+    UI::bouton(boite(MARGE, 740, ECRAN_L - 2 * MARGE, 76), "Accès depuis l'ordinateur", D_ACCES, 0, STYLE_PLEIN);
     UI::bouton(boite(MARGE, 836, ECRAN_L - 2 * MARGE, 76), "Tout effacer…", D_EFFACER);
   }
 };

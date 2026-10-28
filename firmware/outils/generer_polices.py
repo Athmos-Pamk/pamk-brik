@@ -13,6 +13,8 @@ que epd_driver.h. Ajouts :
 
 Utilisation (depuis firmware/, avec le venv de _ref) :
   _ref\\.venv\\Scripts\\python.exe outils\\generer_polices.py            -> toutes les polices
+  _ref\\.venv\\Scripts\\python.exe outils\\generer_polices.py BarlowTexte36 BarlowGras36
+                                                                  -> seulement celles-là
   _ref\\.venv\\Scripts\\python.exe outils\\generer_polices.py --verifier  -> compare avec fontconvert.py
 
 Les polices TTF (licence SIL OFL 1.1) sont attendues dans _ref/fonts/ (voir README).
@@ -66,6 +68,9 @@ POLICES = [
     ("BarlowMoyen22",  "barlow/Barlow-Medium.ttf",   22, PLAGES_TEXTE),
     ("BarlowTexte28",  "barlow/Barlow-Regular.ttf",  28, PLAGES_TEXTE),
     ("BarlowGras28",   "barlow/Barlow-SemiBold.ttf", 28, PLAGES_TEXTE),
+    # Taille du texte « grande » (Param.tailleTexte, 28/10/2026) : listes et notes.
+    ("BarlowTexte36",  "barlow/Barlow-Regular.ttf",  36, PLAGES_TEXTE),
+    ("BarlowGras36",   "barlow/Barlow-SemiBold.ttf", 36, PLAGES_TEXTE),
     ("Pixel50",        "vt323/VT323-Regular.ttf",    50, PLAGES_TEXTE),
     ("Pixel75",        "vt323/VT323-Regular.ttf",    75, PLAGES_TEXTE),
     ("Pixel125",       "vt323/VT323-Regular.ttf",   125, PLAGES_CHIFFRES),
@@ -198,12 +203,19 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--verifier", action="store_true", help="compare avec fontconvert.py et s'arrête")
     p.add_argument("--compresser", action="store_true", help="glyphes compressés zlib (non géré par le firmware)")
+    p.add_argument("noms", nargs="*", help="polices à générer (toutes si rien n'est donné)")
     a = p.parse_args()
     if a.verifier:
         return verifier()
+    inconnus = [n for n in a.noms if n not in [q[0] for q in POLICES]]
+    if inconnus:
+        print(f"Police(s) inconnue(s) : {', '.join(inconnus)}")
+        return 1
     os.makedirs(SORTIE, exist_ok=True)
     total = 0
     for nom, ttf, px, plages in POLICES:
+        if a.noms and nom not in a.noms:
+            continue
         texte, taille = convertir(nom, [os.path.join(DOSSIER_TTF, ttf)], plages, px=px, compresser=a.compresser)
         fichier = os.path.join(SORTIE, f"{nom}.h")
         with open(fichier, "w", encoding="utf-8", newline="\n") as f:

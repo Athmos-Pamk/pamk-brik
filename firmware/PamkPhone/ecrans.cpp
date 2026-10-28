@@ -6,6 +6,7 @@
 #include "stockage.h"
 #include "minuteries.h"
 #include "parametres.h"
+#include "agenda.h"
 
 namespace Ecrans {
 
@@ -18,15 +19,17 @@ struct Memo {
   uint8_t type;
   bool heureValide;
   bool grandeHeure;            // heure en grand (mise à jour par minuterie) ou « en veille depuis »
+  bool profonde;               // sans bouton : sommeil profond, réveil par le bouton de la carte
   char heure[8];
   char date[48];
   char batterie[24];
   char minuterie[64];          // ligne Pomodoro / minuteur ("" = aucune)
+  char rdv[64];                // prochain rendez-vous de l'agenda ("" = aucun), 28/10/2026
   uint8_t nbTaches;
   char taches[4][TACHE_TITRE_MAX + 1];
 };
 
-static const uint32_t MAGIE = 0x4D454D31;   // "MEM1"
+static const uint32_t MAGIE = 0x4D454D32;   // "MEM2" (rendez-vous ajouté au mémo)
 static RTC_DATA_ATTR Memo r_memo;
 
 void demarrage(const char* message) {
@@ -76,6 +79,11 @@ static void dessinerVeille(const Memo& m) {
     Dessin::texte(F_GRAS, MARGE + 30, yy, m.minuterie, NOIR);
     yy += 64;
   }
+  if (m.rdv[0]) {   // carré creux : rendez-vous (le plein est la minuterie)
+    Dessin::rect(MARGE, yy - 22, 16, 16, 3, NOIR);
+    Dessin::texteTronque(F_GRAS, MARGE + 30, yy, ECRAN_L - 2 * MARGE - 30, m.rdv, NOIR);
+    yy += 64;
+  }
   if (m.nbTaches > 0) {
     Dessin::texte(F_PIXEL, MARGE, yy, "À FAIRE", GRIS_FONCE);
     yy += 46;
@@ -85,9 +93,10 @@ static void dessinerVeille(const Memo& m) {
       yy += 46;
     }
   }
-  Dessin::texteCentre(F_PETITE, ECRAN_L / 2, 932,
-                      BOUTONS_PRESENTS ? "Appuie sur le bouton du dessus pour réveiller" : "Touche l'écran pour réveiller",
-                      GRIS_FONCE);
+  const char* reveil = "Touche l'écran pour réveiller";
+  if (BOUTONS_PRESENTS) reveil = "Appuie sur le bouton du dessus pour réveiller";
+  else if (m.profonde) reveil = "Appuie sur le bouton SENSOR_VN de la carte";
+  Dessin::texteCentre(F_PETITE, ECRAN_L / 2, 932, reveil, GRIS_FONCE);
 }
 
 static void dessinerEteint() {
@@ -114,11 +123,12 @@ static void dessinerVide() {
   Dessin::texteCentre(F_TEXTE, ECRAN_L / 2, 700, "Branche-moi en USB-C.", GRIS_FONCE);
 }
 
-void veille() {
+void veille(bool profonde) {
   Memo& m = r_memo;
   memset(&m, 0, sizeof(m));
   m.magie = MAGIE;
   m.type = MEMO_VEILLE;
+  m.profonde = profonde;
   struct tm t;
   Horloge::locale(t);
   m.heureValide = Horloge::valide();
@@ -140,6 +150,17 @@ void veille() {
       snprintf(m.minuterie, sizeof(m.minuterie), "Minuteur jusqu'à %s", h);
     }
   }
+  Evenement ev;
+  if (m.heureValide && Agenda::prochainEvenement(ev)) {
+    // « Aujourd'hui 14:30 · Dentiste », « Demain · Férié »…
+    char quand[32], h[8] = "";
+    Horloge::texteDateRelative(quand, sizeof(quand), ev.date);
+    quand[0] = (char)toupper((unsigned char)quand[0]);
+    if (ev.debut >= 0) snprintf(h, sizeof(h), " %02d:%02d", ev.debut / 60, ev.debut % 60);
+    char ligne[128];
+    snprintf(ligne, sizeof(ligne), "%s%s · %s", quand, h, ev.titre);
+    copier(m.rdv, sizeof(m.rdv), ligne);
+  }
   int indices[4];
   const int n = Stockage::listeTaches(TACHES_A_FAIRE, indices, 4);
   m.nbTaches = (uint8_t)n;
@@ -158,6 +179,8 @@ void batterieVide() {
   r_memo.type = MEMO_VIDE;
   dessinerVide();
 }
+
+bool veilleProfonde() { return r_memo.magie == MAGIE && r_memo.type == MEMO_VEILLE && r_memo.profonde; }
 
 bool redessinerMemorise() {
   if (r_memo.magie != MAGIE) return false;

@@ -144,6 +144,11 @@ Geste suivre() {
     s_x0 = s_x = x;
     s_y0 = s_y = y;
     s_t0 = m;
+    if (!s_ignorer) {                           // retour immédiat (Systeme inverse la zone)
+      g.type = GESTE_POSE;
+      g.x = s_x0;
+      g.y = s_y0;
+    }
   } else if (s_pose && doigt) {                 // maintien
     s_x = x;
     s_y = y;

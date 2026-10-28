@@ -7,6 +7,8 @@
 enum IdApp : uint8_t {
   APP_ACCUEIL, APP_MENU, APP_TACHES, APP_TACHE, APP_NOTES, APP_NOTE, APP_POMODORO,
   APP_CALENDRIER, APP_CALCULATRICE, APP_REGLAGES, APP_CLAVIER, APP_DIALOGUE, APP_ALERTE,
+  // 28/10/2026
+  APP_RECHERCHE, APP_BILAN, APP_ASSISTANT, APP_ACCES,
 };
 
 class App {
@@ -48,6 +50,13 @@ enum PageReglages : uint8_t {
 App* appReglagesPage(PageReglages page);   // ouvre directement une page des réglages
 App* appAlerte(Alerte a);
 App* appParId(uint8_t id);   // pour rouvrir l'appli après la veille
+
+// 28/10/2026
+App* appRecherche();                  // app_recherche.cpp : tâches et notes
+App* appBilan();                      // app_bilan.cpp : bilan de la semaine
+App* appAssistant();                  // app_assistant.cpp : premier démarrage guidé
+App* appAcces();                      // app_acces.cpp : page web et mise à jour depuis l'ordinateur
+App* appAlerteRappel(const char* idTache);   // app_alerte.cpp : rappel d'une tâche (id() = APP_ALERTE)
 
 // Saisie au clavier et confirmation (applis modales)
 enum ModeSaisie : uint8_t { SAISIE_LIGNE, SAISIE_TEXTE, SAISIE_MOT_DE_PASSE };

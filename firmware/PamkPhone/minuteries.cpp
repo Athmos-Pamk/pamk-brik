@@ -1,10 +1,11 @@
 #include "minuteries.h"
 #include "horloge.h"
 #include "parametres.h"
+#include "stats.h"
 
 namespace Minuteries {
 
-static const uint32_t MAGIE = 0x504D4B31;   // "PMK1"
+static const uint32_t MAGIE = 0x504D4B32;   // "PMK2" (28/10/2026 : + tâche du Pomodoro)
 
 struct Etat {
   uint32_t magie;
@@ -19,6 +20,7 @@ struct Etat {
   uint32_t minFin;
   uint32_t minReste;
   uint32_t minDuree;
+  char tache[ID_LONGUEUR + 1];   // tâche du Pomodoro (28/10/2026), "" = aucune
 };
 
 static RTC_DATA_ATTR Etat r;
@@ -43,7 +45,16 @@ static void lancerPhase(PhasePomo p) {
   r.pomoReste = r.pomoDuree;
 }
 
+// Statistiques : minutes réellement travaillées dans la phase de travail en cours (le temps
+// passé en pause n'en fait pas partie). Appelé quand elle se termine, est passée ou arrêtée.
+static void compterTravail() {
+  if (r.phase != POMO_TRAVAIL) return;
+  const int faites = (int)r.pomoDuree - pomoRestantS();
+  if (faites > 0) Stats::ajouterMinutes((faites + 30) / 60);   // à la minute la plus proche
+}
+
 void pomoDemarrer() {
+  compterTravail();   // relancé en plein travail : la phase interrompue compte quand même
   if (r.phase == POMO_ARRET && r.cycles >= Param.pomoCycles) r.cycles = 0;
   lancerPhase(POMO_TRAVAIL);
 }
@@ -60,14 +71,18 @@ void pomoPauseReprise() {
 }
 
 void pomoArreter() {
+  compterTravail();
   r.phase = POMO_ARRET;
   r.pomoSuspendu = false;
   r.cycles = 0;
 }
 
 // Fin d'une phase : travail -> pause (lancée automatiquement) ; pause -> arrêt, prêt à relancer.
-static Alerte finPhase() {
+// aTerme : la phase est allée jusqu'au bout (sinon, elle a été passée).
+static Alerte finPhase(bool aTerme) {
   if (r.phase == POMO_TRAVAIL) {
+    if (aTerme) Stats::pomodoroTermine();
+    compterTravail();
     r.cycles++;
     lancerPhase(r.cycles % (Param.pomoCycles ? Param.pomoCycles : 4) == 0 ? POMO_LONGUE : POMO_PAUSE);
     return ALERTE_FIN_TRAVAIL;
@@ -81,7 +96,7 @@ static Alerte finPhase() {
 }
 
 void pomoPasser() {
-  if (r.phase != POMO_ARRET) finPhase();
+  if (r.phase != POMO_ARRET) finPhase(false);
 }
 
 PhasePomo pomoPhase() { return (PhasePomo)r.phase; }
@@ -104,6 +119,13 @@ const char* nomPhase(PhasePomo p) {
     default:           return "Prêt";
   }
 }
+
+void pomoChoisirTache(const char* id) {
+  strncpy(r.tache, id ? id : "", sizeof(r.tache) - 1);
+  r.tache[sizeof(r.tache) - 1] = 0;
+}
+
+const char* pomoTache() { return r.tache; }
 
 void minDemarrer(int secondes) {
   if (secondes < 1) return;
@@ -147,7 +169,7 @@ Alerte verifier() {
     r.minActif = false;
     return ALERTE_FIN_MINUTEUR;
   }
-  if (r.phase != POMO_ARRET && !r.pomoSuspendu && m >= r.pomoFin) return finPhase();
+  if (r.phase != POMO_ARRET && !r.pomoSuspendu && m >= r.pomoFin) return finPhase(true);
   return ALERTE_AUCUNE;
 }
 

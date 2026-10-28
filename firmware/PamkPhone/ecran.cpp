@@ -48,6 +48,49 @@ static const uint8_t INCONNU = 0xFF;                         // pixel dont on ig
 static const uint8_t FORCE = 0xFE;     // pixel non blanc inchangé, mais à nettoyer et redessiner
 static const int OCTETS_LIGNE = NATIF_L / 4;                 // 240 : ligne envoyée à la dalle (2 bits/pixel)
 static const int PILE_MAX = 1 << 17;                         // pixels en attente dans etendreNettoyage()
+static const uint8_t M_FONCER = 1;                           // « 01 » dans le masque (2 bits par pixel)
+static const uint8_t M_ECLAIRCIR = 2;                        // « 10 »
+// Pixels écrits par le chemin rapide (affichage rapide, inversion au toucher) : la dalle est au
+// noir ou au blanc, et s_affiche garde la valeur voulue v (0 à 15) : A_NOIR | v ou A_BLANC | v.
+// Ces valeurs (0x20 à 0x3F) diffèrent toujours de la toile (0 à 15), d'INCONNU et de FORCE :
+// la comparaison par mots de 32 bits les voit changées, et elles ne comptent pas en inconnus.
+static const uint8_t A_NOIR = 0x20;
+static const uint8_t A_BLANC = 0x30;
+// Pixel rapide au noir qui doit revenir à sa valeur v : éclairci directement (comme en mode
+// doux) si l'écart v est sous ECART_DIRECT_MAX, nettoyé au-delà. Bords gris des lettres : écart
+// toujours < 8 (arrondi à 8), donc jamais nettoyés. Fond blanc d'une zone inversée au toucher
+// (poussé au noir) : écart >= 8, car l'éclaircissement direct (102 µs au plus, voir plus haut)
+// ne ramène pas un noir au vrai blanc.
+static const uint8_t ECART_DIRECT_MAX = 8;
+
+// Affichage rapide (clavier) et retour au toucher (28/10/2026) : RAPIDE_TRAMES trames de
+// RAPIDE_DUREE (0,1 µs) où chaque pixel qui change est poussé d'un coup au noir ou au blanc.
+// 4 x 50 µs, c'est la moitié « blanche » d'un cycle de epd_clear(), celle du nettoyage
+// (pousserMasque) : assez pour ramener un noir au blanc du fond, alors que les 102 µs de
+// epd_draw_image n'y arrivaient pas (voir plus haut). Vers le noir, c'est deux fois un noir de
+// epd_draw_image : noir franc. Moins laisserait des lettres effacées grisâtres ; plus coûterait
+// quelques ms par trame (toutes les lignes de la dalle sont parcourues) sans rien de mieux à voir.
+static const int RAPIDE_TRAMES = 4;
+static const uint32_t RAPIDE_DUREE = DUREE_CYCLE_US * 10;    // 50 µs
+static const int RAPIDE_INCONNU_MAX_PCT = 5;                 // écran inconnu au-delà : affichage normal
+// Retour au toucher : une zone plus grande (horloge de l'accueil) n'est inversée que sur un
+// cadre de INVERSION_CADRE_PX pixels : moins de pixels à remettre d'aplomb ensuite.
+static const long INVERSION_MAX_PX = 60000;
+static const int INVERSION_CADRE_PX = 6;
+// Image complète automatique selon l'usure (Param.nettoyageAuto == 3). Chaque mise à jour
+// ajoute à l'usure ses pixels pilotés, multipliés par un poids : sans nettoyage, les traces
+// s'accumulent plus vite. Au-delà de USURE_SEUIL, la prochaine mise à jour qui est un gros
+// changement (changement de page) devient une image complète : son flash se fond dans le
+// changement de page. L'usure repart de zéro après toute image complète.
+static const uint32_t USURE_SEUIL = 6UL * ECRAN_L * ECRAN_H; // ~3,1 millions : six écrans entiers
+static const uint32_t USURE_POIDS_PIXELS = 1;  // « pixels » : nettoyés à chaque fois (inversion au
+                                               // toucher aussi : aller-retour noir/blanc)
+static const uint32_t USURE_POIDS_DOUX = 2;    // « doux » : jamais nettoyés
+static const uint32_t USURE_POIDS_RAPIDE = 4;  // rapide : poussés à fond, sans nettoyage
+// Gros changement : au moins GROS_CHANGEMENT_PX pixels (~12 % de l'écran : un bandeau ou une
+// ligne de réglage remise d'aplomb restent en dessous), sur au moins la moitié des colonnes.
+static const long GROS_CHANGEMENT_PX = 60000;
+static const int GROS_CHANGEMENT_COLONNES = ECRAN_L / 2;
 
 static uint8_t* s_toile = nullptr;     // ce qu'on veut afficher (portrait)
 static uint8_t* s_affiche = nullptr;   // ce que la dalle montre (portrait)
@@ -63,6 +106,8 @@ static uint8_t s_orient = ORIENTATION_DEFAUT;
 static uint8_t s_mode = MAJ_PIXELS;
 static uint16_t s_completTous = 0;     // 0 = jamais
 static uint16_t s_partiels = 0;
+static bool s_completAuto = false;     // image complète selon l'usure
+static uint32_t s_usure = 0;           // pixels pilotés (pondérés) depuis la dernière image complète
 static void (*s_rappel)() = nullptr;
 static uint32_t s_nb = 0;
 static uint32_t s_duree = 0;
@@ -153,22 +198,47 @@ static inline bool aNettoyer(uint8_t ancien) {
   return s_mode == MAJ_PIXELS && ancien != BLANC;     // mode pixels : tout ce qui n'était pas blanc
 }
 
+// Pixels rapides (A_NOIR | v, A_BLANC | v)
+static inline bool marque(uint8_t a) { return (a & 0xE0) == 0x20; }   // 0x20 à 0x3F
+static inline uint8_t physique(uint8_t a) {                           // ce que montre vraiment la dalle
+  return marque(a) ? ((a & 0x10) ? BLANC : NOIR) : a;
+}
+static inline uint8_t attendu(uint8_t a) { return a & 0x0F; }          // valeur voulue (pixel marqué)
+// État à noter après le chemin rapide : dalle à phys (noir ou blanc), valeur voulue v.
+static inline uint8_t etatRapide(uint8_t phys, uint8_t v) {
+  return phys == v ? v : (uint8_t)((phys == BLANC ? A_BLANC : A_NOIR) | v);
+}
+
+// aNettoyer() pour la valeur brute de s_affiche (marquée ou non) et la nouvelle valeur n.
+static inline bool nettoyerPixel(uint8_t brut, uint8_t n) {
+  if (!marque(brut)) return aNettoyer(brut);
+  if (brut & 0x10) return false;                       // au blanc : dessin depuis le blanc
+  if (n >= ECART_DIRECT_MAX) return true;              // au noir, grand écart (= n) : vrai nettoyage
+  return attendu(brut) != n && s_mode == MAJ_PIXELS;   // contenu changé : comme les autres pixels
+}
+
+// Pixel rapide dont la valeur voulue n'a pas changé : simple correction. Il ne sert pas de point
+// de départ à etendreNettoyage() (sinon toute la lettre ou la touche serait nettoyée).
+static inline bool aCorriger(uint8_t brut, uint8_t n) { return marque(brut) && attendu(brut) == n; }
+
 static inline uint8_t valeur(int idx, Filtre f) {
   const uint8_t n = s_toile[idx];
   if (f == F_NORMAL) return n;
-  const uint8_t a = s_affiche[idx];
+  const uint8_t brut = s_affiche[idx];
+  const uint8_t a = physique(brut);
   if (n == a) return BLANC;                           // inchangé : valeur neutre (15 = rien)
+  const bool nettoyer = nettoyerPixel(brut, n);
   switch (f) {
     case F_NETTOYER:
-      return aNettoyer(a) ? 0 : BLANC;
+      return nettoyer ? 0 : BLANC;
     case F_CIBLE:
       // depuis le blanc : pixels nettoyés, ou anciens pixels blancs
       if (n == BLANC) return BLANC;
-      return (aNettoyer(a) || a == BLANC) ? n : BLANC;
+      return (nettoyer || a == BLANC) ? n : BLANC;
     case F_ECLAIRCIR:
-      return (!aNettoyer(a) && n > a) ? (uint8_t)(BLANC - (n - a)) : BLANC;
+      return (!nettoyer && n > a) ? (uint8_t)(BLANC - (n - a)) : BLANC;
     case F_ASSOMBRIR:
-      return (!aNettoyer(a) && a != BLANC && n < a) ? (uint8_t)(BLANC - (a - n)) : BLANC;
+      return (!nettoyer && a != BLANC && n < a) ? (uint8_t)(BLANC - (a - n)) : BLANC;
     default:
       return BLANC;
   }
@@ -209,6 +279,7 @@ static void copierVersAffiche(const Boite& b) {
 
 // Classe chaque pixel changé et note, par colonne, ce qu'il faut faire.
 // Retourne le nombre de pixels changés ; inconnus = pixels dont l'état était inconnu.
+// Un pixel rapide déjà à sa valeur (noir ou blanc voulu) est simplement noté comme affiché.
 static long analyser(long& inconnus) {
   memset(s_colBesoin, 0, sizeof(s_colBesoin));
   long changes = 0;
@@ -217,17 +288,26 @@ static long analyser(long& inconnus) {
     const uint32_t* t = (const uint32_t*)(s_toile + y * ECRAN_L);    // 540 = 135 mots
     const uint32_t* a = (const uint32_t*)(s_affiche + y * ECRAN_L);
     const uint8_t* tl = s_toile + y * ECRAN_L;
-    const uint8_t* al = s_affiche + y * ECRAN_L;
+    uint8_t* al = s_affiche + y * ECRAN_L;
     for (int w = 0; w < ECRAN_L / 4; w++) {
       if (t[w] == a[w]) continue;
       for (int x = w * 4; x < w * 4 + 4; x++) {
         const uint8_t n = tl[x], o = al[x];
         if (n == o) continue;
+        if (marque(o) && physique(o) == n) {
+          al[x] = n;
+          continue;
+        }
         changes++;
         uint8_t besoin;
         if (o == INCONNU) {
           inconnus++;
           besoin = (uint8_t)(B_NETTOYER | (n != BLANC ? B_CIBLE : 0));
+        } else if (marque(o)) {
+          // Pixel rapide : nettoyage (grand écart depuis le noir, ou contenu changé en mode
+          // pixels), sinon dessin depuis le blanc ou éclaircissement direct depuis le noir.
+          if (nettoyerPixel(o, n)) besoin = (uint8_t)(B_NETTOYER | (n != BLANC ? B_CIBLE : 0));
+          else besoin = (o & 0x10) ? B_CIBLE : B_ECLAIRCIR;
         } else if (s_mode == MAJ_PIXELS) {
           besoin = (uint8_t)((o != BLANC ? B_NETTOYER : 0) | (n != BLANC ? B_CIBLE : 0));
         } else if (o == BLANC) {
@@ -246,8 +326,8 @@ static long analyser(long& inconnus) {
   return changes;
 }
 
-// Pixel non blanc qui ne change pas (et pas encore marqué : FORCE et INCONNU diffèrent
-// toujours de la toile, qui va de 0 à 15).
+// Pixel non blanc qui ne change pas (et pas encore marqué : FORCE, INCONNU et les pixels
+// rapides diffèrent toujours de la toile, qui va de 0 à 15).
 static inline bool aEtendre(int i) {
   const uint8_t a = s_affiche[i];
   return a != BLANC && a == s_toile[i];
@@ -283,6 +363,7 @@ static long etendreNettoyage() {
         const int i = y * ECRAN_L + x;
         const uint8_t o = s_affiche[i];
         if (o == s_toile[i] || o == FORCE) continue;   // inchangé, ou déjà traité par la pile
+        if (aCorriger(o, s_toile[i])) continue;        // pixel rapide à corriger, même contenu
         examinerVoisins(i);
         while (s_nbPile > 0) {
           marques++;
@@ -345,7 +426,27 @@ static void dessinerComplet() {
   epd_draw_grayscale_image(plein, s_natif);
   memcpy(s_affiche, s_toile, TAILLE_TOILE);
   s_partiels = 0;
+  s_usure = 0;
   snprintf(s_texteMode, sizeof(s_texteMode), "complet");
+}
+
+// Ajoute des pixels pilotés à l'usure (inutile de compter au-delà du seuil : pas de débordement).
+static void ajouterUsure(long pixels, uint32_t poids) {
+  if (pixels > 0 && s_usure < USURE_SEUIL) s_usure += (uint32_t)pixels * poids;
+}
+
+// Colonnes portrait touchées par le dernier analyser().
+static int compterColonnes() {
+  int n = 0;
+  for (int x = 0; x < ECRAN_L; x++) {
+    if (s_colBesoin[x]) n++;
+  }
+  return n;
+}
+
+// Changement de page : beaucoup de pixels, étalés sur une bonne partie de la largeur.
+static inline bool grosChangement(long changes, int colonnes) {
+  return changes >= GROS_CHANGEMENT_PX && colonnes >= GROS_CHANGEMENT_COLONNES;
 }
 
 // Remplit s_masque pour les groupes à nettoyer : « 01 » (foncer) sur chaque pixel à nettoyer,
@@ -410,8 +511,10 @@ static void sauterLigne() {
   s_saut++;
 }
 
-// Une trame : pousse au noir (blanc = false) ou au blanc les pixels du masque pendant
-// duree (0,1 µs, comme epd_push_pixels). Les lignes sans pixel à nettoyer sont sautées.
+// Une trame : pousse les pixels du masque pendant duree (0,1 µs, comme epd_push_pixels).
+// blanc = false : masque envoyé tel quel (« 01 » = foncer ; l'affichage rapide y mêle des
+// « 10 » = éclaircir) ; blanc = true : les « 01 » deviennent « 10 ». Les lignes sans pixel
+// dans le masque sont sautées.
 static void pousserMasque(bool blanc, uint32_t duree) {
   epd_start_frame();
   s_saut = 0;
@@ -482,23 +585,28 @@ void rafraichir(bool complet) {
   if (!s_toile) return;
   const uint32_t t0 = millis();
   long inconnus = 0;
-  const long changes = analyser(inconnus);
+  long changes = analyser(inconnus);
   if (changes == 0 && !complet) return;
 
+  // Usure : l'image complète attend un gros changement (changement de page).
+  const bool parUsure = s_completAuto && s_usure >= USURE_SEUIL && grosChangement(changes, compterColonnes());
   const bool faireComplet = complet ||
                             inconnus * 100 > (long)TAILLE_TOILE * PART_INCONNU_COMPLET_PCT ||
-                            (s_completTous > 0 && s_partiels >= s_completTous);
+                            (s_completTous > 0 && s_partiels >= s_completTous) ||
+                            parUsure;
   if (!faireComplet && s_mode == MAJ_PIXELS && etendreNettoyage() > 0) {
-    analyser(inconnus);   // ajoute les colonnes des pixels marqués
+    changes = analyser(inconnus);   // ajoute les colonnes des pixels marqués
   }
   epd_poweron();
   if (faireComplet) {
-    dessinerComplet();
+    dessinerComplet();              // remet aussi l'usure à zéro
+    if (parUsure) snprintf(s_texteMode, sizeof(s_texteMode), "complet (usure)");
   } else {
     Groupe groupes[16];
     const int nb = grouper(groupes);
     const int passes = mettreAJourGroupes(groupes, nb);
     if (s_partiels < 0xFFFF) s_partiels++;
+    ajouterUsure(changes, s_mode == MAJ_DOUX ? USURE_POIDS_DOUX : USURE_POIDS_PIXELS);
     snprintf(s_texteMode, sizeof(s_texteMode), "%s, %d groupe%s, %d passe%s",
              s_mode == MAJ_DOUX ? "doux" : "pixels", nb, nb > 1 ? "s" : "", passes, passes > 1 ? "s" : "");
   }
@@ -506,6 +614,145 @@ void rafraichir(bool complet) {
   epd_poweroff_all();   // coupe aussi PWR_EN (LED bleue, pont batterie)
   s_nb++;
   s_duree = millis() - t0;
+}
+
+// ---------------------------------------------------------------------------
+//  Affichage rapide et retour au toucher (28/10/2026)
+//  Une seule série de RAPIDE_TRAMES trames, avec un masque où se mêlent des « 01 » (pixels à
+//  foncer) et des « 10 » (pixels à blanchir) : chaque pixel va directement au noir ou au blanc,
+//  sans nettoyage ni passes de gris. s_affiche note le noir ou le blanc réel avec la valeur
+//  voulue (A_NOIR | v, A_BLANC | v) : le rafraichir() normal suivant corrige ces pixels sans
+//  nettoyage (dessin depuis le blanc, ou éclaircissement direct depuis le noir) et sans
+//  etendreNettoyage(), donc sans faire clignoter les lettres tapées ni les touches appuyées.
+// ---------------------------------------------------------------------------
+
+// Valeur affichée par le chemin rapide : 0 à 7 -> noir, 8 à 15 -> blanc.
+static inline uint8_t arrondi(uint8_t v) { return v < 8 ? NOIR : BLANC; }
+
+// Note le pixel portrait (x, y) dans le masque : M_FONCER ou M_ECLAIRCIR. Une ligne native est
+// remise à zéro la première fois qu'on y écrit (s_ligneMasque doit être vidé avant).
+static inline void noterMasque(int x, int y, uint8_t code) {
+  int nx, ny;
+  if (s_orient == 1) {
+    nx = NATIF_L - 1 - y;
+    ny = x;
+  } else {
+    nx = y;
+    ny = NATIF_H - 1 - x;
+  }
+  uint8_t* ligne = s_masque + ny * OCTETS_LIGNE;
+  if (!s_ligneMasque[ny]) {
+    memset(ligne, 0, OCTETS_LIGNE);
+    s_ligneMasque[ny] = true;
+  }
+  ligne[nx >> 2] |= (uint8_t)(code << ((nx & 3) * 2));   // même ordre que preparerMasque()
+}
+
+void rafraichirRapide() {
+  if (!s_toile) return;
+  const uint32_t t0 = millis();
+  memset(s_ligneMasque, 0, sizeof(s_ligneMasque));
+  memset(s_colBesoin, 0, sizeof(s_colBesoin));
+  const long inconnusMax = (long)TAILLE_TOILE * RAPIDE_INCONNU_MAX_PCT / 100;
+  long changes = 0, inconnus = 0, pousses = 0;
+  int x0 = ECRAN_L, x1 = -1, y0 = -1, y1 = -1;   // rectangle des pixels changés
+  for (int y = 0; y < ECRAN_H && inconnus <= inconnusMax; y++) {
+    const uint32_t* t = (const uint32_t*)(s_toile + y * ECRAN_L);
+    const uint32_t* a = (const uint32_t*)(s_affiche + y * ECRAN_L);
+    const uint8_t* tl = s_toile + y * ECRAN_L;
+    const uint8_t* al = s_affiche + y * ECRAN_L;
+    for (int w = 0; w < ECRAN_L / 4; w++) {
+      if (t[w] == a[w]) continue;
+      for (int x = w * 4; x < w * 4 + 4; x++) {
+        const uint8_t n = tl[x], o = al[x];
+        if (n == o) continue;
+        const uint8_t p = physique(o);
+        const uint8_t cible = arrondi(n);
+        if (marque(o) && attendu(o) == n && p == cible) continue;   // déjà fait, attend sa correction
+        changes++;
+        s_colBesoin[x] = 1;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y0 < 0) y0 = y;
+        y1 = y;
+        if (o == INCONNU || o == FORCE) inconnus++;   // poussé quand même, mais restera inconnu
+        if (p == cible) continue;                     // déjà au noir ou au blanc voulu
+        noterMasque(x, y, cible == NOIR ? M_FONCER : M_ECLAIRCIR);
+        pousses++;
+      }
+    }
+  }
+  if (changes == 0) return;
+  // Écran en bonne partie inconnu, ou changement de page : ce n'est plus une frappe.
+  if (inconnus > inconnusMax || grosChangement(changes, compterColonnes())) {
+    rafraichir();
+    return;
+  }
+  if (pousses > 0) {
+    epd_poweron();
+    for (int k = 0; k < RAPIDE_TRAMES; k++) pousserMasque(false, RAPIDE_DUREE);
+    if (s_rappel) s_rappel();
+    epd_poweroff_all();
+  }
+  // La dalle montre maintenant les valeurs arrondies : on les note avec la valeur voulue. Les
+  // pixels inconnus le restent : le rafraichir() suivant les nettoiera.
+  for (int y = y0; y <= y1; y++) {
+    uint8_t* al = s_affiche + y * ECRAN_L;
+    const uint8_t* tl = s_toile + y * ECRAN_L;
+    for (int x = x0; x <= x1; x++) {
+      const uint8_t o = al[x];
+      if (o != tl[x] && o != INCONNU && o != FORCE) al[x] = etatRapide(arrondi(tl[x]), tl[x]);
+    }
+  }
+  ajouterUsure(pousses, USURE_POIDS_RAPIDE);
+  s_nb++;
+  s_duree = millis() - t0;
+  snprintf(s_texteMode, sizeof(s_texteMode), "rapide, %ld pixel%s", pousses, pousses > 1 ? "s" : "");
+}
+
+// Inverse les pixels xa à xb - 1 de la ligne portrait y (noir <-> blanc, gris arrondis).
+// Chaque pixel garde sa valeur d'avant comme valeur voulue : à la remise d'aplomb, un pixel
+// passé au blanc est redessiné depuis le blanc, un fond blanc passé au noir est nettoyé
+// (écart >= ECART_DIRECT_MAX), dans les deux modes : vrai blanc, jamais de rectangle gris.
+// Retourne le nombre de pixels notés dans le masque.
+static long inverserSegment(int y, int xa, int xb) {
+  uint8_t* al = s_affiche + y * ECRAN_L;
+  const uint8_t* tl = s_toile + y * ECRAN_L;
+  for (int x = xa; x < xb; x++) {
+    const uint8_t o = al[x];
+    const bool connu = (o != INCONNU && o != FORCE);
+    const uint8_t vu = connu ? physique(o) : tl[x];   // ce que montre la dalle (inconnu : la toile)
+    const uint8_t cible = vu < 8 ? BLANC : NOIR;
+    noterMasque(x, y, cible == NOIR ? M_FONCER : M_ECLAIRCIR);
+    if (connu) al[x] = etatRapide(cible, marque(o) ? attendu(o) : o);
+  }
+  return xb > xa ? xb - xa : 0;
+}
+
+// s_toile n'est pas touchée : la page redessinée ensuite (rafraichir ou rafraichirRapide) voit
+// la zone inversée dans s_affiche et la remet d'aplomb. Pas de mesure de batterie ici (s_rappel) :
+// c'est le chemin le plus court possible, et l'affichage qui suit s'en charge.
+void inverserZone(const Boite& b) {
+  if (!s_affiche) return;
+  const int x0 = maxi(0, b.x), x1 = mini(ECRAN_L, b.x + b.l);
+  const int y0 = maxi(0, b.y), y1 = mini(ECRAN_H, b.y + b.h);
+  if (x1 <= x0 || y1 <= y0) return;
+  const bool cadre = (long)(x1 - x0) * (y1 - y0) > INVERSION_MAX_PX;
+  const int e = INVERSION_CADRE_PX;
+  memset(s_ligneMasque, 0, sizeof(s_ligneMasque));
+  long pousses = 0;
+  for (int y = y0; y < y1; y++) {
+    if (!cadre || y < y0 + e || y >= y1 - e) {
+      pousses += inverserSegment(y, x0, x1);
+    } else {   // cadre : seulement les bords gauche et droit sur ces lignes
+      pousses += inverserSegment(y, x0, mini(x0 + e, x1));
+      pousses += inverserSegment(y, maxi(x0 + e, x1 - e), x1);
+    }
+  }
+  epd_poweron();
+  for (int k = 0; k < RAPIDE_TRAMES; k++) pousserMasque(false, RAPIDE_DUREE);
+  epd_poweroff_all();
+  ajouterUsure(pousses, USURE_POIDS_PIXELS);
 }
 
 void nettoyerEnProfondeur() {
@@ -550,6 +797,7 @@ void definirOrientation(uint8_t o) {
 uint8_t orientation() { return s_orient; }
 void definirModeMaj(uint8_t mode) { s_mode = (mode == MAJ_DOUX) ? MAJ_DOUX : MAJ_PIXELS; }
 void definirCompletTous(uint16_t n) { s_completTous = n; }
+void definirCompletAuto(bool actif) { s_completAuto = actif; }   // l'usure est comptée même coupée
 void definirRappelAlimente(void (*rappel)()) { s_rappel = rappel; }
 
 void executerAlimente(void (*fonction)()) {

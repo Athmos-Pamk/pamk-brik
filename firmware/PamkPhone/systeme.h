@@ -16,6 +16,9 @@ App* courante();
 int profondeur();
 
 void redessiner(bool complet = false);
+// Clavier : affiche tout de suite en noir et blanc (Ecran::rafraichirRapide), puis corrige
+// les gris une fois la frappe arrêtée. Sans effet si Param.clavierRapide est coupé.
+void redessinerRapide();
 void notifier(const char* message);   // bandeau en bas de l'écran pendant ~3 s
 void nettoyerEcran();                 // nettoyage anti-fantôme demandé
 void appliquerParametres();           // après un changement de réglage

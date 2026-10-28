@@ -5,6 +5,10 @@
 #pragma once
 #include "config.h"
 
+// Répétition d'une tâche (28/10/2026). Cocher une tâche répétée ne la termine pas : son
+// échéance passe à la prochaine occurrence (comme l'appli Rappels).
+enum Repetition : uint8_t { REP_AUCUNE, REP_JOUR, REP_SEMAINE, REP_MOIS, REP_JOURS_OUVRES };
+
 struct Tache {
   char id[ID_LONGUEUR + 1];
   char titre[TACHE_TITRE_MAX + 1];
@@ -12,6 +16,13 @@ struct Tache {
   bool faite;
   uint32_t cree;       // UTC
   uint32_t maj;        // UTC (updated_at)
+  // 28/10/2026 (absents des anciens fichiers : valeurs par défaut au chargement)
+  int16_t heure;       // minutes depuis minuit, -1 = aucune
+  uint8_t repetition;  // Repetition
+  bool rappel;         // alerte à l'heure (échéance + heure obligatoires)
+  uint32_t rappelVu;   // UTC du moment prévu du dernier rappel affiché (évite les doublons)
+  uint32_t rappelReporte;   // UTC du rappel reporté (« Dans 10 min »), 0 = à l'heure prévue
+  uint8_t jourMois;    // REP_MOIS : jour d'origine (le 31 revient après un 30 ou un 28 février)
 };
 
 struct Note {
@@ -44,6 +55,19 @@ int nbTachesFaites();
 int nbTachesEnRetard();
 // Bits 1..31 : jours du mois avec au moins une tâche à faire / seulement des tâches faites.
 void joursAvecTaches(int annee, int mois, uint32_t& aFaire, uint32_t& faites);
+// 28/10/2026
+bool heureTache(const char* id, int minutes);            // -1 = sans heure (coupe aussi le rappel)
+bool repetitionTache(const char* id, uint8_t rep);       // échéance mise à aujourd'hui si absente
+bool rappelTache(const char* id, bool actif);            // refusé sans échéance ni heure
+// « Aujourd'hui » : en retard puis du jour, à faire, triées (heure, puis création).
+int tachesAujourdhui(int* indices, int max);
+// Rappels : moment UTC du prochain rappel à venir (0 = aucun) pour programmer le réveil,
+// et premier rappel arrivé et pas encore affiché (le marque comme vu). false si aucun.
+uint32_t prochainRappel();
+bool rappelArrive(uint32_t maintenant, char* idSortie, size_t taille);
+void texteRepetition(uint8_t rep, char* sortie, size_t taille);   // « chaque jour »…
+uint32_t momentRappel(const Tache* t);                   // UTC du rappel (reporté compris), 0 = aucun
+bool reporterRappel(const char* id, int minutes);        // « Dans 10 min » : refusé sans rappel
 
 // --- Notes ---
 int nbNotes();

@@ -1,13 +1,17 @@
 // Calendrier : vue du mois (jours avec tâches marqués), toucher un jour -> ses tâches.
+// 28/10/2026 : événements de l'agenda (lecture seule, agenda.h) : jours marqués d'un trait,
+// listés avant les tâches dans la vue du jour ; bouton « Mettre à jour l'agenda ».
 #include "app.h"
 #include "systeme.h"
 #include "ui.h"
 #include "horloge.h"
 #include "stockage.h"
+#include "agenda.h"
+#include "reseau.h"
 
 namespace {
 
-enum Code { C_MOIS_PREC, C_MOIS_SUIV, C_AUJOURDHUI, C_JOUR, C_AJOUTER, C_COCHER, C_OUVRIR };
+enum Code { C_MOIS_PREC, C_MOIS_SUIV, C_AUJOURDHUI, C_JOUR, C_AJOUTER, C_COCHER, C_OUVRIR, C_AGENDA };
 
 const int ENTETE_Y = CONTENU_Y + 8;      // ligne « ‹ octobre 2026 › »
 const int ENTETE_H = 72;
@@ -19,7 +23,10 @@ const int GRILLE_X = (ECRAN_L - 7 * CASE_L) / 2;   // 18
 const int LISTE_Y = CONTENU_Y + 70;
 const int PAR_PAGE = (PIED_Y - LISTE_Y) / LIGNE_H;  // 7
 
+const int EV_JOUR_MAX = 16;              // événements de l'agenda listés pour un jour
+
 int g_indices[TACHES_MAX];
+Evenement g_evenements[EV_JOUR_MAX];
 
 class AppCalendrier : public App {
  public:
@@ -51,6 +58,13 @@ class AppCalendrier : public App {
         if (t) Systeme::ouvrir(appTache(t->id));
         return;
       }
+      case C_AGENDA:
+        if (m_attente) return;
+        m_essai = Agenda::numeroEssai();
+        Reseau::mettreAJourAgenda();   // connexion si besoin ; téléchargement dans Reseau::boucle()
+        m_attente = Reseau::agendaEnCours();
+        if (!m_attente) Systeme::notifier("Wi-Fi occupé : réessaie dans un instant");
+        break;
       case CODE_PAGE_PREC: m_pages.precedente(); break;
       case CODE_PAGE_SUIV: m_pages.suivante(); break;
       default: break;
@@ -73,6 +87,22 @@ class AppCalendrier : public App {
     return true;
   }
 
+  // Fin de la mise à jour de l'agenda demandée ici : résultat dans le bandeau.
+  void seconde() override {
+    if (!m_attente || Reseau::agendaEnCours()) return;
+    m_attente = false;
+    char t[96];
+    if (Agenda::numeroEssai() == m_essai) {   // pas de tentative : le Wi-Fi n'a pas abouti
+      snprintf(t, sizeof(t), "Agenda : %s", Reseau::texteEtat());
+    } else if (Agenda::derniereErreur()[0]) {
+      snprintf(t, sizeof(t), "Agenda : %s", Agenda::derniereErreur());
+    } else {
+      const int n = Agenda::nbEvenements();
+      snprintf(t, sizeof(t), "Agenda à jour : %d événement%s", n, n > 1 ? "s" : "");
+    }
+    Systeme::notifier(t);
+  }
+
   bool retour() override {
     if (m_jour) {   // de la vue du jour on revient au mois
       m_jour = 0;
@@ -90,6 +120,8 @@ class AppCalendrier : public App {
   int m_mois = 1;
   int m_jour = 0;          // AAAAMMJJ du jour ouvert, 0 = vue du mois
   Pages m_pages = {0, 1};
+  bool m_attente = false;  // mise à jour de l'agenda demandée depuis cet écran
+  uint16_t m_essai = 0;
 
   void allerAujourdhui() {
     int a, m, j;
@@ -129,6 +161,7 @@ class AppCalendrier : public App {
     // Grille
     uint32_t aFaire = 0, faites = 0;
     Stockage::joursAvecTaches(m_annee, m_mois, aFaire, faites);
+    const uint32_t evenements = Agenda::joursAvecEvenements(m_annee, m_mois);
     const int premier = Horloge::composer(m_annee, m_mois, 1);
     const int decalage = Horloge::jourSemaine(premier);   // 0 = lundi
     const int nbJours = Horloge::joursDansMois(m_annee, m_mois);
@@ -156,6 +189,8 @@ class AppCalendrier : public App {
       } else if (faites & (1UL << j)) {
         Dessin::rectPlein(x + CASE_L / 2 - 5, y + 62, 10, 10, estAuj ? GRIS_CLAIR : GRIS);
       }
+      // Trait = au moins un événement de l'agenda ce jour-là
+      if (evenements & (1UL << j)) Dessin::rectPlein(x + CASE_L / 2 - 14, y + 80, 28, 4, marque);
       UI::zone(boite(x, y, CASE_L, CASE_H), C_JOUR, date);
     }
     // Résumé du mois
@@ -164,7 +199,35 @@ class AppCalendrier : public App {
     char resume[64];
     if (total == 0) snprintf(resume, sizeof(resume), "Aucune tâche à faire ce mois-ci");
     else snprintf(resume, sizeof(resume), "%d jour%s avec des tâches à faire", total, total > 1 ? "s" : "");
-    Dessin::texteCentre(F_PETITE, ECRAN_L / 2, PIED_Y + 50, resume, GRIS_FONCE);
+    if (!Agenda::configure()) {
+      Dessin::texteCentre(F_PETITE, ECRAN_L / 2, PIED_Y + 50, resume, GRIS_FONCE);
+      return;
+    }
+    // Agenda configuré : le résumé remonte, le bouton prend le pied de page.
+    Dessin::texteCentre(F_PETITE, ECRAN_L / 2, PIED_Y - 8, resume, GRIS_FONCE);
+    const Boite b = boite(MARGE, PIED_Y + 12, ECRAN_L - 2 * MARGE, 64);
+    if (m_attente) UI::bouton(b, "Mise à jour de l'agenda…", C_AGENDA, 0, STYLE_INACTIF);
+    else UI::bouton(b, "Mettre à jour l'agenda", C_AGENDA);
+  }
+
+  // Une ligne d'événement (lecture seule) : heures de début et de fin, titre, lieu.
+  void ligneEvenement(int y, const Evenement& e) {
+    char h[8];
+    if (e.debut >= 0) {
+      snprintf(h, sizeof(h), "%02d:%02d", e.debut / 60, e.debut % 60);
+      Dessin::texte(F_GRAS, MARGE, y + 44, h, NOIR);
+      if (e.fin >= 0) {
+        snprintf(h, sizeof(h), "%02d:%02d", e.fin / 60, e.fin % 60);
+        Dessin::texte(F_PETITE, MARGE, y + 76, h, GRIS_FONCE);
+      }
+    } else {
+      Dessin::texte(F_PETITE, MARGE, y + 44, "journée", GRIS_FONCE);
+    }
+    const int x = MARGE + 96;
+    Dessin::rectPlein(x - 14, y + 16, 4, LIGNE_H - 32, NOIR);   // barre « agenda »
+    Dessin::texteTronque(F_TEXTE, x, y + 44, ECRAN_L - MARGE - x, e.titre, NOIR);
+    if (e.lieu[0]) Dessin::texteTronque(F_PETITE, x, y + 76, ECRAN_L - MARGE - x, e.lieu, GRIS_FONCE);
+    UI::separateur(y + LIGNE_H - 2, x, ECRAN_L - MARGE);
   }
 
   void dessinerJour() {
@@ -175,7 +238,10 @@ class AppCalendrier : public App {
     Horloge::texteDateLongue(longue, sizeof(longue), m_jour, true);
     longue[0] = (char)toupper((unsigned char)longue[0]);
     Dessin::texte(F_GRAS, MARGE, CONTENU_Y + 46, longue, NOIR);
-    const int n = Stockage::tachesDuJour(m_jour, g_indices, TACHES_MAX);
+    // Événements de l'agenda d'abord (par heure), puis les tâches du jour
+    const int nE = Agenda::evenementsDuJour(m_jour, g_evenements, EV_JOUR_MAX);
+    const int nT = Stockage::tachesDuJour(m_jour, g_indices, TACHES_MAX);
+    const int n = nE + nT;
     m_pages.regler(n, PAR_PAGE);
     if (n == 0) {
       UI::messageVide(LISTE_Y + 90, "Rien de prévu ce jour-là", nullptr);
@@ -184,7 +250,8 @@ class AppCalendrier : public App {
     for (int i = 0; i < PAR_PAGE; i++) {
       const int k = m_pages.page * PAR_PAGE + i;
       if (k >= n) break;
-      dessinerLigneTache(LISTE_Y + i * LIGNE_H, g_indices[k], C_COCHER, C_OUVRIR);
+      if (k < nE) ligneEvenement(LISTE_Y + i * LIGNE_H, g_evenements[k]);
+      else dessinerLigneTache(LISTE_Y + i * LIGNE_H, g_indices[k - nE], C_COCHER, C_OUVRIR);
     }
     UI::pagination(m_pages);
   }

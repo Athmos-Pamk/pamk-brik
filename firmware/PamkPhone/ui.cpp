@@ -28,14 +28,12 @@ void zone(const Boite& b, int code, int arg) {
   s_nbZones++;
 }
 
-bool chercher(int x, int y, int& code, int& arg) {
+// Index de la zone qui reçoit un toucher en (x, y), -1 si aucune. Commun à chercher() et
+// chercherZone() : la zone inversée au toucher est toujours celle qui recevra l'action.
+static int trouver(int x, int y) {
   // Zone qui contient le point : la dernière dessinée gagne (elle est au-dessus).
   for (int i = s_nbZones - 1; i >= 0; i--) {
-    if (dansBoite(s_zones[i].b, x, y)) {
-      code = s_zones[i].code;
-      arg = s_zones[i].arg;
-      return true;
-    }
+    if (dansBoite(s_zones[i].b, x, y)) return i;
   }
   // Sinon la plus proche à moins de TOLERANCE pixels.
   int meilleure = -1, dmin = TOLERANCE + 1;
@@ -46,9 +44,21 @@ bool chercher(int x, int y, int& code, int& arg) {
     const int d = maxi(dx, dy);
     if (d < dmin) { dmin = d; meilleure = i; }
   }
-  if (meilleure < 0) return false;
-  code = s_zones[meilleure].code;
-  arg = s_zones[meilleure].arg;
+  return meilleure;
+}
+
+bool chercher(int x, int y, int& code, int& arg) {
+  const int i = trouver(x, y);
+  if (i < 0) return false;
+  code = s_zones[i].code;
+  arg = s_zones[i].arg;
+  return true;
+}
+
+bool chercherZone(int x, int y, Boite& b) {
+  const int i = trouver(x, y);
+  if (i < 0) return false;
+  b = s_zones[i].b;
   return true;
 }
 

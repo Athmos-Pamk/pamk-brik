@@ -18,6 +18,10 @@ bool usbOrdinateur();               // hôte USB détecté (trames SOF)
 bool faible();
 bool vide();
 
+// Autonomie estimée d'après la baisse de la batterie (28/10/2026) : « environ 3 jours ».
+// false tant que l'estimation n'est pas possible (pas assez de mesures, ou en charge).
+bool texteAutonomie(char* sortie, size_t taille);
+
 void activite();                    // remet à zéro le compteur d'inactivité
 uint32_t inactifDepuisMs();
 

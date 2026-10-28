@@ -24,6 +24,15 @@ uint8_t* toile();                   // ECRAN_L * ECRAN_H octets
 void effacer(uint8_t couleur);
 
 void rafraichir(bool complet = false);
+// 28/10/2026
+// Rapide : les pixels qui changent vont directement au noir ou au blanc (gris arrondis),
+// sans nettoyage. Pour la frappe au clavier et le retour au toucher ; les gris sont
+// corrigés par le rafraichir() normal suivant.
+void rafraichirRapide();
+// Retour immédiat au toucher : inverse la zone (noir <-> blanc) sur la dalle tout de suite.
+// Le rafraichir() suivant (page redessinée) la remet d'aplomb.
+void inverserZone(const Boite& b);
+void definirCompletAuto(bool actif); // image complète quand l'écran a beaucoup « travaillé »
 void nettoyerEnProfondeur();        // longue séquence anti-fantôme puis image complète
 void supposerAffiche();             // la dalle montre déjà la toile (réveil sans redessin)
 void invaliderZone(const Boite& b); // contenu de cette zone inconnu (sera nettoyé puis redessiné)
