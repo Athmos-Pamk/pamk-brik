@@ -1,0 +1,11 @@
+﻿# Python / CAD
+cad/.venv/
+__pycache__/
+*.pyc
+# Arduino / références téléchargées
+firmware/_ref/
+firmware/**/build/
+# Secrets éventuels
+**/secrets.h
+# Sauvegardes automatiques d'Inventor
+OldVersions/

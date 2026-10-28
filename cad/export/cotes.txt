@@ -1,0 +1,14 @@
+Pamk Phone V0 - cotes générales
+  Encombrement du corps : 71.1 (larg.) x 125.1 (long.) x 21.33 (ép.) mm
+  Avec la plaque et le visage : épaisseur 23.23 mm
+  Face avant : 67.1 x 121.1 ; dos : 60.6 x 114.6
+  Retrait de dépouille : 3.79 mm par côté (12°)
+  Empilage Z : fond 1.6 | batterie 2.10-12.10 | dos PCB 14.90 | verre 18.08-19.18 | lèvre 19.33 | avant 21.33 | joint 16.00
+  Fenêtre écran : 59.92 x 105.28 au ras du verre, centre Y = -4.14
+  cadre_avant                71.1 x  125.1 x  5.33   volume   6.06 cm³
+  coque                      69.5 x  123.5 x 17.78   volume  23.35 cm³
+  plaque_aimantee            57.0 x   68.0 x  1.40   volume   5.19 cm³
+  plaque_visage              25.3 x   22.8 x  0.50   volume   0.10 cm³
+  capuchon_volume_plus        4.6 x   11.3 x  5.20   volume   0.15 cm³
+  capuchon_volume_moins       4.6 x   11.3 x  5.20   volume   0.15 cm³
+  capuchon_marche            11.3 x    4.6 x  5.20   volume   0.15 cm³

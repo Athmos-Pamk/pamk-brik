@@ -1,0 +1,130 @@
+==============================================================================
+VÉRIFICATION PAMK PHONE V0
+==============================================================================
+
+1. Solides (valide / fermé / nombre de solides / volume)
+  cadre_avant              valide=True  fermé=True  solides= 1  volume=   6056.0 mm³
+  coque                    valide=True  fermé=True  solides= 1  volume=  23349.2 mm³
+  plaque_aimantee          valide=True  fermé=True  solides= 1  volume=   5186.8 mm³
+  plaque_visage            valide=True  fermé=True  solides=33  volume=     96.6 mm³
+  capuchon_volume_plus     valide=True  fermé=True  solides= 1  volume=    154.3 mm³
+  capuchon_volume_moins    valide=True  fermé=True  solides= 1  volume=    154.3 mm³
+  capuchon_marche          valide=True  fermé=True  solides= 1  volume=    154.3 mm³
+  STL exportés (sens d'impression) :
+    cadre_avant.stl                étanche=True  triangles=  1988  z min=0.000  hauteur=5.33
+    coque.stl                      étanche=True  triangles= 14258  z min=0.000  hauteur=17.78
+    plaque_aimantee.stl            étanche=True  triangles=  2060  z min=0.000  hauteur=1.40
+    plaque_visage.stl              étanche=True  triangles=   396  z min=1.400  hauteur=0.50
+    capuchon_volume_plus.stl       étanche=True  triangles=  1072  z min=-0.000  hauteur=4.58
+    capuchon_volume_moins.stl      étanche=True  triangles=  1072  z min=-0.000  hauteur=4.58
+    capuchon_marche.stl            étanche=True  triangles=  1072  z min=-0.000  hauteur=4.58
+
+2. Interférences (volume d'intersection, doit être ~0)
+  551 couples testés, plus grand volume commun : 0.00000 mm³
+
+3. Jeux mesurés (distance mini entre surfaces) / jeu voulu
+  verre_tactile          <-> cadre_avant                     0.150 mm  (voulu 0.15)  adhésif sous la lèvre (0,15) ; 0,2 sur les côtés
+  pcb                    <-> coque                           0.247 mm  (voulu 0.20)  coins du PCB contre les pans coupés (les plots ont 0,7 de mousse)
+  pcb                    <-> cadre_avant                     0.724 mm
+  dalle_epaper           <-> coque                           0.814 mm
+  batterie               <-> coque                           0.500 mm  (voulu 0.50)  mousse sous la batterie / 0,5 dans le berceau
+  batterie               <-> comp_nappe_petits_composants    0.800 mm  (voulu 0.80)  marge de gonflement
+  comp_usb_c             <-> coque                           1.480 mm  (voulu 0.20)  prise USB-C / bords de l'encoche
+  comp_bouton_rst        <-> coque                           0.343 mm  poussoir RST / flanc
+  comp_bouton_boot       <-> coque                           0.343 mm
+  comp_lecteur_tf        <-> coque                           1.554 mm
+  comp_connecteur_hy20   <-> coque                           1.326 mm
+  comp_module_esp32s3    <-> coque                           1.120 mm  antenne : rien que du plastique autour
+  pli_nappe_dalle        <-> coque                           0.339 mm  pli de la nappe de la dalle (haut)
+  inter_volume_plus      <-> capuchon_volume_plus            0.100 mm  (voulu 0.10)  poussoir / capuchon au repos
+  inter_volume_moins     <-> capuchon_volume_moins           0.100 mm  (voulu 0.10)
+  inter_marche           <-> capuchon_marche                 0.100 mm  (voulu 0.10)
+  inter_volume_plus      <-> coque                           0.000 mm  (voulu 0.00)  posé dans son berceau
+  capuchon_volume_plus   <-> coque                           0.000 mm  (voulu 0.00)  collerette en appui sur le siège
+  cadre_avant            <-> coque                           0.000 mm  (voulu 0.00)  appui au plan de joint
+  aimant_plaque_1        <-> coque                           0.100 mm  (voulu 0.10)  aimant de plaque / fond de son creux
+  aimant_coque_1         <-> aimant_plaque_1                 0.700 mm  écart entre aimants
+  plots d'appui : sommet z=14.20, dos du PCB z=14.90 -> 0.70 mm pour une mousse de 1.0 mm
+  embout USB-C 12.35 x 6.5 (coins r 1) : bute à 0.00 mm devant la prise -> la fiche entre de 6.65 mm sur 6,65
+  embout USB-C 11.00 x 5.5 (coins r 1) : bute à 0.00 mm devant la prise -> la fiche entre de 6.65 mm sur 6,65
+  montage capuchon volume_plus  : recul de 3.88 mm par l'intérieur -> passe sans toucher
+  montage capuchon volume_moins : recul de 3.88 mm par l'intérieur -> passe sans toucher
+  montage capuchon marche       : recul de 3.88 mm par l'intérieur -> passe sans toucher
+  bouton volume_plus  : jeu 0.10 + course 0.25 -> le capuchon dépasse encore de 0.25 mm enfoncé à fond
+  bouton volume_moins : jeu 0.10 + course 0.25 -> le capuchon dépasse encore de 0.25 mm enfoncé à fond
+  bouton marche       : jeu 0.10 + course 0.25 -> le capuchon dépasse encore de 0.25 mm enfoncé à fond
+
+4. Épaisseur sous la peau extérieure (rayons ; cible 1,6, mini 1,2)
+  coque            2229 points  mini=1.17  0,5 %=1.21  5 %=1.40  médiane=1.60
+  cadre_avant      860 points  mini=1.26  0,5 %=1.38  5 %=1.45  médiane=1.47
+  (plaque : mesure à travers les faces ; 0,6 = peau voulue au-dessus des aimants)
+  plaque_aimantee  8093 points  mini=0.60  0,5 %=0.60  5 %=1.40  médiane=1.40
+    zones sous 1,15 mm : 13
+      0.60 mm vers X= -24.3 Y=  19.8 Z= -1.4 (26 pts)
+      0.60 mm vers X=  25.6 Y=  21.5 Z= -0.8 (32 pts)
+      0.60 mm vers X= -23.0 Y= -15.3 Z= -0.8 (29 pts)
+      0.60 mm vers X=  23.0 Y= -15.6 Z= -1.4 (30 pts)
+      0.60 mm vers X= -24.1 Y=  21.2 Z= -1.4 (20 pts)
+      0.60 mm vers X= -21.9 Y= -13.5 Z= -1.4 (19 pts)
+      0.60 mm vers X=  23.6 Y=  20.6 Z= -0.8 (17 pts)
+      0.60 mm vers X=  25.9 Y= -14.3 Z= -1.4 (21 pts)
+      0.60 mm vers X= -20.7 Y= -14.6 Z= -1.4 (2 pts)
+      0.60 mm vers X=  21.0 Y=  19.3 Z= -1.4 (2 pts)
+      0.60 mm vers X=  20.7 Y= -14.0 Z= -1.4 (1 pts)
+      0.60 mm vers X= -20.6 Y= -15.8 Z= -1.4 (1 pts)
+
+5. Impression sans support (STL dans le sens d'impression)
+  cadre_avant              (face avant sur le plateau)
+    porte-à-faux > 45° : 0.00 mm² au total, plus grande zone 0.00 mm²
+  coque                    (dos sur le plateau)
+    porte-à-faux > 45° : 16.15 mm² au total, plus grande zone 1.81 mm²
+       1.81 mm² vers (  31.7,   14.4, z= 8.73)
+       1.79 mm² vers (  31.8,    5.6, z= 8.73)
+       1.78 mm² vers ( -31.8,   14.4, z= 8.73)
+       1.78 mm² vers (   4.4,   58.8, z= 8.73)
+       1.75 mm² vers ( -31.7,    5.6, z= 8.73)
+       1.74 mm² vers (  -4.4,   58.7, z= 8.73)
+    pont/plafond  60.6 x  0.6 mm (aire   36.3) à z= 0.40  (x=   0.0, y=  38.0)
+    pont/plafond  60.6 x  0.6 mm (aire   36.3) à z= 0.40  (x=   0.0, y= -38.0)
+    pont/plafond  13.3 x  0.4 mm (aire    5.3) à z= 3.40  (x=   0.0, y=  57.3)
+    pont/plafond  13.3 x  0.4 mm (aire    5.3) à z= 3.40  (x=  30.3, y=  10.0)
+    pont/plafond  13.3 x  0.4 mm (aire    5.3) à z= 3.40  (x= -30.3, y=  10.0)
+    pont/plafond  10.0 x  1.6 mm (aire   16.3) à z=14.95  (x=  33.8, y=   1.2)
+    pont/plafond   8.3 x  3.2 mm (aire   26.4) à z= 8.84  (x=   0.2, y=  58.8)
+    pont/plafond   8.3 x  3.2 mm (aire   26.4) à z= 8.84  (x= -31.8, y=  10.2)
+    ... 5 autres plus petits
+  plaque_aimantee          (face intérieure (logements d'aimants) sur le plateau, visage en haut)
+    porte-à-faux > 45° : 0.00 mm² au total, plus grande zone 0.00 mm²
+    pont/plafond   6.2 x  6.2 mm (aire   30.2) à z= 0.80  (x=  23.5, y= -21.0)
+    pont/plafond   6.2 x  6.2 mm (aire   30.2) à z= 0.80  (x= -23.5, y= -21.0)
+    pont/plafond   6.2 x  6.2 mm (aire   30.2) à z= 0.80  (x=  23.5, y=  15.0)
+    pont/plafond   6.2 x  6.2 mm (aire   30.2) à z= 0.80  (x= -23.5, y=  15.0)
+  plaque_visage            (avec la plaque (même objet, 2e filament))
+    porte-à-faux > 45° : 0.00 mm² au total, plus grande zone 0.00 mm²
+    pont/plafond   2.4 x  2.4 mm (aire    5.9) à z= 1.40  (x=   2.9, y=  -6.3)
+    pont/plafond   2.4 x  2.4 mm (aire    5.9) à z= 1.40  (x=   2.9, y=  -9.1)
+    pont/plafond   2.4 x  2.4 mm (aire    5.9) à z= 1.40  (x=   2.9, y= -12.0)
+    pont/plafond   2.4 x  2.4 mm (aire    5.9) à z= 1.40  (x=  -2.9, y=  -6.3)
+    pont/plafond   2.4 x  2.4 mm (aire    5.9) à z= 1.40  (x=  -2.9, y=  -9.1)
+    pont/plafond   2.4 x  2.4 mm (aire    5.9) à z= 1.40  (x=  -2.9, y= -12.0)
+    pont/plafond   2.4 x  2.4 mm (aire    5.9) à z= 1.40  (x=   2.9, y=  -3.4)
+    pont/plafond   2.4 x  2.4 mm (aire    5.9) à z= 1.40  (x=  -2.9, y=  -3.4)
+    ... 25 autres plus petits
+  capuchon_volume_plus     (collerette sur le plateau)
+    porte-à-faux > 45° : 0.00 mm² au total, plus grande zone 0.00 mm²
+  capuchon_volume_moins    (collerette sur le plateau)
+    porte-à-faux > 45° : 0.00 mm² au total, plus grande zone 0.00 mm²
+  capuchon_marche          (collerette sur le plateau)
+    porte-à-faux > 45° : 0.00 mm² au total, plus grande zone 0.00 mm²
+
+6. Encombrements (repère assemblage, d'après le maillage fin)
+  cadre_avant              X[ -35.57,  35.57] Y[ -62.57,  62.57] Z[ 16.00, 21.33]
+  coque                    X[ -34.77,  34.77] Y[ -61.77,  61.77] Z[  0.00, 17.78]
+  plaque_aimantee          X[ -28.50,  28.50] Y[ -34.00,  34.00] Z[ -1.40,  0.00]
+  plaque_visage            X[ -12.65,  12.65] Y[  -9.57,  13.20] Z[ -1.90, -1.40]
+  capuchon_volume_plus     X[  29.34,  33.92] Y[   4.35,  15.65] Z[  4.40,  9.60]
+  capuchon_volume_moins    X[ -33.92, -29.34] Y[   4.35,  15.65] Z[  4.40,  9.60]
+  capuchon_marche          X[  -5.65,   5.65] Y[  56.34,  60.92] Z[  4.40,  9.60]
+  TÉLÉPHONE COMPLET : 71.13 x 125.13 x 23.23 mm (largeur x longueur x épaisseur, plaque et visage compris)
+
+BILAN : aucune alerte

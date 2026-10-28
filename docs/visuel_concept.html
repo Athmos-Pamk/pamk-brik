@@ -1,0 +1,717 @@
+<title>Téléphone Pamk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=VT323&display=swap">
+<style>
+/* Layout : fiche produit. Visionneuse 3D à gauche (collante), fiche technique à droite ; une colonne sous 900px. Motif : coins chanfreinés partout. */
+:root {
+  --bg: #e5e8df;
+  --panel: #eef0e9;
+  --ink: #1c2017;
+  --muted: #5a6151;
+  --line: #c4c9b9;
+  --olive: #4e5c35;
+  --amber: #9a5c0c;
+  --stage: #d6dbcd;
+  --stage-hi: #e9ece3;
+  --f-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --ch: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11130e; --panel: #181b14; --ink: #e3e6da; --muted: #969c8a; --line: #2c3026;
+    --olive: #a5b67a; --amber: #eea543; --stage: #151810; --stage-hi: #22261b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11130e; --panel: #181b14; --ink: #e3e6da; --muted: #969c8a; --line: #2c3026;
+  --olive: #a5b67a; --amber: #eea543; --stage: #151810; --stage-hi: #22261b;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--f-body); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+.page { max-width: 1320px; margin: 0 auto; padding-inline: clamp(16px, 4vw, 48px); padding-block: 28px 64px; }
+
+.head { display: grid; gap: 6px; margin-bottom: 26px; max-width: 70ch; }
+.eyebrow { margin: 0; font: 600 12px/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--olive); }
+h1 { margin: 0; font: 700 clamp(38px, 6vw, 64px)/1 var(--f-display); letter-spacing: -.01em; text-wrap: balance; }
+.lead { margin: 6px 0 0; font-size: 18px; color: var(--muted); max-width: 62ch; }
+.lead strong { color: var(--ink); font-weight: 600; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: clamp(20px, 3vw, 40px); align-items: start; }
+.viewer { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); display: grid; gap: 12px; min-width: 0; }
+
+.stage {
+  position: relative; height: clamp(460px, 76vh, 800px); overflow: hidden;
+  background: radial-gradient(ellipse 70% 60% at 50% 42%, var(--stage-hi), var(--stage));
+  clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px), 0 18px);
+}
+#scene { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#scene:active { cursor: grabbing; }
+.dims, .hint { position: absolute; margin: 0; font: 500 12px/1.3 var(--f-mono); color: var(--muted); pointer-events: none; }
+.dims { top: 18px; left: 24px; color: var(--ink); letter-spacing: .02em; }
+.hint { bottom: 16px; left: 24px; right: 24px; }
+.loading, .nogl { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 24px; text-align: center; font: 500 14px/1.4 var(--f-mono); color: var(--muted); }
+
+.tags { position: absolute; inset: 0; pointer-events: none; }
+.tag { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; will-change: transform, opacity; }
+.tag .dot { position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; background: var(--amber); }
+.tag .lead-line { position: absolute; left: 0; width: 1px; background: var(--ink); opacity: .45; }
+.tag.up .lead-line { bottom: 0; }
+.tag.down .lead-line { top: 0; }
+.tag .txt {
+  position: absolute; left: 0; transform: translateX(-50%); white-space: nowrap;
+  font: 500 12px/1.25 var(--f-mono); color: var(--ink); background: var(--panel); padding: 4px 9px;
+  clip-path: polygon(5px 0, calc(100% - 5px) 0, 100% 5px, 100% calc(100% - 5px), calc(100% - 5px) 100%, 5px 100%, 0 calc(100% - 5px), 0 5px);
+}
+.tag .txt em { font-style: normal; color: var(--amber); margin-left: 6px; }
+
+.views { display: flex; flex-wrap: wrap; gap: 6px; }
+button { font: inherit; color: inherit; }
+.seg {
+  appearance: none; border: 0; cursor: pointer; padding: 9px 14px; min-height: 40px;
+  font: 600 13px/1 var(--f-display); letter-spacing: .06em; text-transform: uppercase;
+  background: var(--panel); color: var(--ink);
+  clip-path: polygon(7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px), calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px), 0 7px);
+  transition: background-color .15s, color .15s;
+}
+.seg:hover { background: var(--line); }
+.seg[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.seg:focus-visible, .swatch:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--amber); }
+
+.sheet { display: grid; gap: 14px; min-width: 0; }
+.block {
+  background: var(--panel); padding: 20px 22px 22px; display: grid; gap: 14px; min-width: 0;
+  clip-path: polygon(var(--ch) 0, calc(100% - var(--ch)) 0, 100% var(--ch), 100% calc(100% - var(--ch)), calc(100% - var(--ch)) 100%, var(--ch) 100%, 0 calc(100% - var(--ch)), 0 var(--ch));
+}
+h2 { margin: 0; font: 600 13px/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--olive); }
+
+.opt { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; align-items: center; }
+.opt-name { font: 500 14px/1.2 var(--f-body); color: var(--muted); }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.swatch {
+  appearance: none; border: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 11px 6px 7px; min-height: 36px; background: transparent; color: var(--ink);
+  font: 500 14px/1 var(--f-body);
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.swatch:hover { background: var(--bg); }
+.swatch[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+.chip { width: 20px; height: 20px; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
+.finish-note { margin: 0; font-size: 14px; color: var(--muted); }
+
+dl.specs { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+dl.specs dt, dl.specs dd { padding: 8px 0; border-top: 1px solid var(--line); }
+dl.specs dt { color: var(--muted); font-size: 15px; }
+dl.specs dd { margin: 0; text-align: right; font: 500 14px/1.5 var(--f-mono); font-variant-numeric: tabular-nums; }
+.note { margin: 0; font-size: 14px; color: var(--muted); }
+
+.parts { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.parts li { display: grid; gap: 2px; padding: 10px 0; border-top: 1px solid var(--line); }
+.parts b { font: 600 15px/1.3 var(--f-display); letter-spacing: .02em; }
+.parts span { font-size: 15px; color: var(--muted); }
+.parts .ori { font: 500 13px/1.4 var(--f-mono); color: var(--amber); }
+
+ul.plain { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+ul.plain li { position: relative; padding-left: 18px; font-size: 15px; }
+ul.plain li::before { content: ""; position: absolute; left: 0; top: .62em; width: 7px; height: 7px; background: var(--olive); clip-path: polygon(2px 0, 100% 0, 100% calc(100% - 2px), calc(100% - 2px) 100%, 0 100%, 0 2px); }
+ul.plain b { font-weight: 600; }
+.ask li::before { background: var(--amber) !important; }
+
+.foot { margin: 22px 0 0; font-size: 13px; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .viewer { position: static; }
+  .stage { height: clamp(380px, 66vh, 620px); }
+}
+@media (prefers-reduced-motion: reduce) { .seg { transition: none; } }
+</style>
+
+<div class="page">
+  <header class="head">
+    <p class="eyebrow">Concept · projet perso, après Pamk</p>
+    <h1>Téléphone Pamk</h1>
+    <p class="lead">Style <strong>Lingot</strong> : un bloc chanfreiné, plus large côté écran que côté dos, avec les rainures de Pamk. Devant, il n'y a que l'écran.</p>
+  </header>
+
+  <div class="layout">
+    <section class="viewer" aria-label="Modèle 3D">
+      <div class="stage" id="stage">
+        <canvas id="scene" aria-label="Modèle 3D du téléphone. Glisse pour le faire tourner."></canvas>
+        <div class="tags" id="tags" aria-hidden="true"></div>
+        <p class="dims">72 × 121 × 13 mm</p>
+        <p class="hint" id="hint">Glisse pour tourner · molette ou pincement pour zoomer</p>
+        <p class="loading" id="loading">Chargement du modèle 3D…</p>
+        <p class="nogl" id="nogl" hidden>Ton navigateur n'affiche pas la 3D (WebGL indisponible).</p>
+      </div>
+      <div class="views" role="group" aria-label="Vues">
+        <button class="seg" type="button" id="v-34" data-view="trois-quarts" aria-pressed="true">3/4</button>
+        <button class="seg" type="button" id="v-face" data-view="face" aria-pressed="false">Face</button>
+        <button class="seg" type="button" id="v-dos" data-view="dos" aria-pressed="false">Dos</button>
+        <button class="seg" type="button" id="v-profil" data-view="profil" aria-pressed="false">Profil</button>
+        <button class="seg" type="button" id="v-dessous" data-view="dessous" aria-pressed="false">Dessous</button>
+        <button class="seg" type="button" id="v-eclate" data-view="eclate" aria-pressed="false">Éclaté</button>
+      </div>
+    </section>
+
+    <aside class="sheet">
+      <section class="block" aria-label="Configurer">
+        <h2>Configurer</h2>
+        <div class="opt">
+          <span class="opt-name">Coque</span>
+          <div class="swatches" role="group" aria-label="Couleur de la coque">
+            <button class="swatch" type="button" id="c-olive" data-group="coque" data-value="olive" aria-pressed="true"><span class="chip" style="--c:#5f6c45"></span>Olive</button>
+            <button class="swatch" type="button" id="c-sable" data-group="coque" data-value="sable" aria-pressed="false"><span class="chip" style="--c:#bca57e"></span>Sable</button>
+            <button class="swatch" type="button" id="c-ardoise" data-group="coque" data-value="ardoise" aria-pressed="false"><span class="chip" style="--c:#4a4f55"></span>Ardoise</button>
+            <button class="swatch" type="button" id="c-ivoire" data-group="coque" data-value="ivoire" aria-pressed="false"><span class="chip" style="--c:#e4dfd1"></span>Ivoire</button>
+          </div>
+        </div>
+        <div class="opt">
+          <span class="opt-name">Cadre</span>
+          <div class="swatches" role="group" aria-label="Couleur du cadre avant">
+            <button class="swatch" type="button" id="f-noir" data-group="cadre" data-value="noir" aria-pressed="true"><span class="chip" style="--c:#1b1c1e"></span>Noir</button>
+            <button class="swatch" type="button" id="f-assorti" data-group="cadre" data-value="assorti" aria-pressed="false"><span class="chip" id="chip-assorti" style="--c:#5f6c45"></span>Assorti</button>
+          </div>
+        </div>
+        <div class="opt">
+          <span class="opt-name">Plaque</span>
+          <div class="swatches" role="group" aria-label="Couleur de la plaque arrière">
+            <button class="swatch" type="button" id="p-noir" data-group="plaque" data-value="noir" aria-pressed="true"><span class="chip" style="--c:#1b1c1e"></span>Noir</button>
+            <button class="swatch" type="button" id="p-olive" data-group="plaque" data-value="olive" aria-pressed="false"><span class="chip" style="--c:#5f6c45"></span>Olive</button>
+            <button class="swatch" type="button" id="p-sable" data-group="plaque" data-value="sable" aria-pressed="false"><span class="chip" style="--c:#bca57e"></span>Sable</button>
+            <button class="swatch" type="button" id="p-ivoire" data-group="plaque" data-value="ivoire" aria-pressed="false"><span class="chip" style="--c:#e4dfd1"></span>Ivoire</button>
+          </div>
+        </div>
+        <div class="opt">
+          <span class="opt-name">Finition</span>
+          <div class="swatches" role="group" aria-label="Finition">
+            <button class="seg" type="button" id="m-fdm" data-group="finition" data-value="fdm" aria-pressed="true">FDM</button>
+            <button class="seg" type="button" id="m-resine" data-group="finition" data-value="resine" aria-pressed="false">Résine</button>
+          </div>
+        </div>
+        <p class="finish-note" id="finish-note">Couches de 0,2 mm sur les flancs : zoome sur le côté pour les voir.</p>
+      </section>
+
+      <section class="block" aria-label="Cotes">
+        <h2>Cotes</h2>
+        <dl class="specs">
+          <dt>Encombrement</dt><dd>72 × 121 × 13 mm</dd>
+          <dt>Écran</dt><dd>e-paper 4,26″ tactile · 800 × 480</dd>
+          <dt>Fenêtre</dt><dd>57 × 94 mm</dd>
+          <dt>Chanfrein avant</dt><dd>2 mm à 45°</dd>
+          <dt>Chanfrein arrière</dt><dd>1,5 mm à 45°</dd>
+          <dt>Angles coupés</dt><dd>8 mm</dd>
+          <dt>Dépouille des flancs</dt><dd>2 mm par côté · ≈ 12°</dd>
+          <dt>Rainures</dt><dd>0,6 mm · à 24,5 mm des bouts</dd>
+          <dt>Paroi</dt><dd>1,6 mm · 4 périmètres en 0,4</dd>
+        </dl>
+        <p class="note">Dessiné autour du GDEQ0426T82 de Good Display (module 105,3 × 62,4 × 1,4 mm, 2 mm avec l'éclairage avant). Tout se recale si tu prends un autre écran.</p>
+      </section>
+
+      <section class="block" aria-label="Impression">
+        <h2>Impression · 3 pièces, sans support</h2>
+        <ul class="parts">
+          <li><b>Cadre avant</b><span class="ori">face contre le plateau</span><span>Chanfrein avant et bord de la fenêtre à 45°. L'écouteur et le micro sont des fentes dans ses chanfreins.</span></li>
+          <li><b>Coque</b><span class="ori">dos contre le plateau</span><span>Les flancs montent à 12°. Les rainures sont verticales pendant l'impression.</span></li>
+          <li><b>Plaque aimantée</b><span class="ori">à plat</span><span>Visage de Pamk en relief de 0,5 mm, en ambre avec une 2ᵉ couleur à l'AMS. Quatre aimants la tiennent.</span></li>
+        </ul>
+        <p class="note">En résine, on pourra passer les chanfreins à 1 mm et affiner les fentes. La forme reste la même.</p>
+      </section>
+
+      <section class="block" aria-label="Détails">
+        <h2>Détails</h2>
+        <ul class="plain">
+          <li><b>Devant :</b> uniquement l'écran. L'écouteur est une fente dans le chanfrein du haut, le micro la même fente dans celui du bas, donc la face reste symétrique.</li>
+          <li><b>Dessus :</b> bouton marche/veille au centre.</li>
+          <li><b>Flancs :</b> volume + à droite, volume − à gauche, à la même hauteur.</li>
+          <li><b>Dessous :</b> USB-C au centre, quatre fentes de haut-parleur de chaque côté.</li>
+          <li><b>Dos :</b> plaque aimantée interchangeable entre les deux rainures, sur le principe des plaques de Pamk.</li>
+          <li><b>Écran :</b> papier électronique noir et blanc, 4 niveaux de gris. Il ne consomme que quand l'image change.</li>
+        </ul>
+      </section>
+
+      <section class="block" aria-label="À trancher">
+        <h2>À trancher</h2>
+        <ul class="plain ask">
+          <li>L'éclairage avant de l'écran, pour le lire dans le noir : avec ou sans.</li>
+          <li>Un appareil photo ou pas.</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+  <p class="foot">Visuel de concept, pas un fichier d'impression. L'électronique montrée dans la vue éclatée sert de repère de place.</p>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const stage = document.getElementById('stage');
+const canvas = document.getElementById('scene');
+const loadingEl = document.getElementById('loading');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+} catch (e) {
+  loadingEl.hidden = true;
+  document.getElementById('nogl').hidden = false;
+  document.getElementById('hint').hidden = true;
+  throw e;
+}
+loadingEl.hidden = true;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.75;
+
+const camera = new THREE.PerspectiveCamera(28, 1, 10, 3000);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 110;
+controls.maxDistance = 700;
+
+const key = new THREE.DirectionalLight(0xffffff, 2.2);
+key.position.set(140, 260, 200);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -160, right: 160, top: 160, bottom: -160, near: 10, far: 800 });
+key.shadow.bias = -0.0004;
+key.shadow.normalBias = 0.6;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xffffff, 0.8);
+rim.position.set(-180, 90, -170);
+scene.add(rim);
+
+// ---------- Géométrie (unités : mm ; y vers le haut, z vers l'écran) ----------
+const SQ = 2 - Math.SQRT2;          // un angle coupé raccourcit de d·(2-√2) quand on décale de d
+const P = { a2: 36, b2: 60.5, k2: 8, zF: 6.5, zB: -6.5, c1: 2, c2: 1.5, t: 2, wall: 1.6 };
+const z2 = P.zF - P.c1;             // arête la plus large
+const z3 = P.zB + P.c2;             // début du chanfrein arrière
+
+function oct(a, b, k) {
+  return [[a, -(b - k)], [a, b - k], [a - k, b], [-(a - k), b], [-a, b - k], [-a, -(b - k)], [-(a - k), -b], [a - k, -b]];
+}
+function off(z) {
+  if (z >= z2) return z - z2;                      // chanfrein avant, 45°
+  if (z <= z3) return P.t + (z3 - z);              // chanfrein arrière, 45°
+  return P.t * (z2 - z) / (z2 - z3);               // dépouille du lingot
+}
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+function ring(z, extra = 0) {
+  const d = off(z) + extra;
+  return oct(P.a2 - d, P.b2 - d, P.k2 - d * SQ).map(([x, y]) => V(x, y, z));
+}
+const ringXY = (pts, z) => pts.map(([x, y]) => V(x, y, z));
+const at = (z, R) => R.map(v => V(v.x, v.y, z));
+
+function loft(rings, { capStart = false, capEnd = false } = {}) {
+  const pos = [];
+  const tri = (p, q, r) => pos.push(p.x, p.y, p.z, q.x, q.y, q.z, r.x, r.y, r.z);
+  for (let i = 0; i < rings.length - 1; i++) {
+    const A = rings[i], B = rings[i + 1], n = A.length;
+    for (let j = 0; j < n; j++) {
+      const k = (j + 1) % n;
+      tri(A[j], A[k], B[k]);
+      tri(A[j], B[k], B[j]);
+    }
+  }
+  const cap = R => { for (let j = 1; j < R.length - 1; j++) tri(R[0], R[j], R[j + 1]); };
+  if (capStart) cap(rings[0]);
+  if (capEnd) cap(rings[rings.length - 1]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+function roundRect(w, h, r) {
+  const s = new THREE.Shape(), x = -w / 2, y = -h / 2;
+  s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r);
+  s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+  return new THREE.ShapeGeometry(s, 6);
+}
+const ZAXIS = V(0, 0, 1);
+function place(mesh, center, normal, lift = 0.04) {
+  mesh.quaternion.setFromUnitVectors(ZAXIS, normal);
+  mesh.position.copy(center).addScaledVector(normal, lift);
+  return mesh;
+}
+
+// ---------- Matériaux ----------
+const layer = { uLayer: { value: 0.22 }, uPitch: { value: 0.2 } };
+const printedMats = [];
+function printed(hex, rough = 0.8) {
+  const m = new THREE.MeshStandardMaterial({ color: hex, roughness: rough, metalness: 0, side: THREE.DoubleSide });
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uLayer = layer.uLayer;
+    sh.uniforms.uPitch = layer.uPitch;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vLz;\nvarying vec3 vZv;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLz = position.z;\nvZv = normalize((modelViewMatrix * vec4(0.0, 0.0, 1.0, 0.0)).xyz);');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uLayer;\nuniform float uPitch;\nvarying float vLz;\nvarying vec3 vZv;')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        {
+          float ph = vLz / uPitch;
+          float fade = clamp(1.0 - fwidth(ph) * 1.1, 0.0, 1.0);
+          vec3 zt = vZv - dot(vZv, normal) * normal;
+          normal = normalize(normal + uLayer * fade * sin(ph * 6.2831853) * zt);
+        }`);
+  };
+  printedMats.push(m);
+  return m;
+}
+const COLORS = { olive: '#5f6c45', sable: '#bca57e', ardoise: '#4a4f55', ivoire: '#e4dfd1', noir: '#1b1c1e' };
+const shellMat = printed(COLORS.olive);
+const bezelMat = printed(COLORS.noir);
+const plateMat = printed(COLORS.noir);
+const amberMat = printed('#e9a23b');
+const holeMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0a, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
+const grooveMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
+const darkMat = new THREE.MeshStandardMaterial({ color: 0x0c0d0e, roughness: 0.7, side: THREE.DoubleSide });
+const metalMat = new THREE.MeshStandardMaterial({ color: 0xc3c6c9, roughness: 0.32, metalness: 0.85 });
+const pcbMat = new THREE.MeshStandardMaterial({ color: 0x21523a, roughness: 0.55 });
+const battMat = new THREE.MeshStandardMaterial({ color: 0xa4a8ab, roughness: 0.42, metalness: 0.35 });
+
+const phone = new THREE.Group();
+scene.add(phone);
+const parts = {};
+function part(name, offset) {
+  const g = new THREE.Group();
+  g.userData.offset = offset;
+  phone.add(g);
+  parts[name] = g;
+  return g;
+}
+function add(group, geo, mat, shadow = true) {
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = shadow;
+  group.add(m);
+  return m;
+}
+
+// Cadre avant
+const zJ = 2.7, gap = 0.5, zBz = zJ + gap / 2, zSh = zJ - gap / 2;
+const win = { a: 28.5, b: 47, k: 2, ch: 0.8 };   // fenêtre 57 × 94 autour de la zone active 55,7 × 92,8 de l'e-paper
+const W0 = ringXY(oct(win.a + win.ch, win.b + win.ch, win.k + win.ch * SQ), P.zF);
+const G = ringXY(oct(win.a, win.b, win.k), P.zF - win.ch);
+const zBack = 5.0;
+const I1 = ring(zBz, P.wall);
+const bezel = part('bezel', 64);
+add(bezel, loft([ring(zBz), ring(z2), ring(P.zF), W0, G, at(zBack, G), at(zBack, I1), I1, ring(zBz)]), bezelMat);
+const nTopCh = V(0, 1, 1).normalize(), nBotCh = V(0, -1, 1).normalize();
+const chY = P.b2 - P.c1 / 2, chZ = (P.zF + z2) / 2;
+bezel.add(place(new THREE.Mesh(roundRect(14, 1.1, 0.55), holeMat), V(0, chY, chZ), nTopCh));   // écouteur
+bezel.add(place(new THREE.Mesh(roundRect(14, 1.1, 0.55), holeMat), V(0, -chY, chZ), nBotCh));  // micro
+
+// Coque
+const shell = part('shell', 0);
+const zFloor = P.zB + P.wall;
+add(shell, loft([ring(P.zB), ring(z3), ring(zSh), ring(zSh, P.wall), ring(zFloor, P.wall)], { capStart: true, capEnd: true }), shellMat);
+add(shell, loft([ring(zSh, 0.25), ring(zBz, 0.25)]), darkMat, false);   // fond du joint cadre/coque
+function grooveGeo(yc, w) {
+  const y0 = yc - w / 2, y1 = yc + w / 2, zs = [zSh, z3, P.zB], pos = [];
+  const quad = (p, q, r, s) => pos.push(...p, ...q, ...r, ...p, ...r, ...s);
+  for (const s of [1, -1]) {
+    for (let i = 0; i < zs.length - 1; i++) {
+      const aA = P.a2 - off(zs[i]), aB = P.a2 - off(zs[i + 1]);
+      quad([s * aA, y0, zs[i]], [s * aA, y1, zs[i]], [s * aB, y1, zs[i + 1]], [s * aB, y0, zs[i + 1]]);
+    }
+  }
+  const aBk = P.a2 - off(P.zB);
+  quad([-aBk, y0, P.zB], [aBk, y0, P.zB], [aBk, y1, P.zB], [-aBk, y1, P.zB]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}
+for (const yc of [36, -36]) add(shell, grooveGeo(yc, 0.6), grooveMat, false);
+const slope = P.t / (z2 - z3);
+const nTop = V(0, 1, -slope).normalize(), nBot = V(0, -1, -slope).normalize();
+const zEnd = -1.3, yEnd = P.b2 - off(zEnd);
+shell.add(place(new THREE.Mesh(roundRect(9, 3.3, 1.6), holeMat), V(0, -yEnd, zEnd), nBot));        // USB-C
+for (const s of [1, -1]) for (let i = 0; i < 4; i++) {
+  shell.add(place(new THREE.Mesh(roundRect(1.2, 3.6, 0.6), holeMat), V(s * (8.4 + i * 2.6), -yEnd, zEnd), nBot)); // haut-parleur
+}
+const btn = new THREE.Mesh(loft([ringXY(oct(6, 1.7, 0.7), 0), ringXY(oct(5.5, 1.2, 0.7 - 0.5 * SQ), 0.7)], { capEnd: true }), shellMat);
+btn.castShadow = true;
+shell.add(place(btn, V(0, yEnd, zEnd), nTop, -0.05));                                                 // marche/veille
+for (const s of [1, -1]) {                                                                            // volume + (droite) / − (gauche)
+  const nSide = V(s, 0, -slope).normalize();
+  const vol = new THREE.Mesh(loft([ringXY(oct(1.7, 7, 0.7), 0), ringXY(oct(1.2, 6.5, 0.7 - 0.5 * SQ), 0.7)], { capEnd: true }), shellMat);
+  vol.castShadow = true;
+  shell.add(place(vol, V(s * (P.a2 - off(zEnd)), 18, zEnd), nSide, -0.05));
+}
+
+// Plaque aimantée
+const plate = part('plate', -26);
+const zP0 = P.zB - 0.01, zP1 = P.zB - 0.8;
+add(plate, loft([ringXY(oct(26, 32, 5), zP0), ringXY(oct(25.2, 31.2, 5 - 0.8 * SQ), zP1)], { capStart: true, capEnd: true }), plateMat);
+const cells = [];
+for (const cx of [-6.5, 6.5]) for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+  if (i === 0 || i === 3 || j === 0 || j === 3) cells.push([cx + (i - 1.5) * 2.6, 7 + (j - 1.5) * 2.6]);
+}
+for (let i = 0; i < 9; i++) cells.push([(i - 4) * 2.6, i % 2 ? -7.6 : -5]);
+const pix = new THREE.InstancedMesh(new THREE.BoxGeometry(2.2, 2.2, 0.5), amberMat, cells.length);
+const mtx = new THREE.Matrix4();
+cells.forEach(([x, y], i) => pix.setMatrixAt(i, mtx.makeTranslation(x, y, zP1 - 0.25)));
+pix.castShadow = true;
+plate.add(pix);
+for (const sx of [-17, 17]) for (const sy of [-22, 22]) {
+  const mag = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.4, 28), metalMat);
+  mag.rotation.x = Math.PI / 2;
+  mag.position.set(sx, sy, zP0 + 0.2);
+  plate.add(mag);
+}
+
+// Écran e-paper tactile (module 62,4 × 105,3 × 2 + interface)
+const module = part('module', 44);
+add(module, new THREE.BoxGeometry(62.4, 105.3, 2).translate(0, 0, 3.95), darkMat);
+const ui = document.createElement('canvas');
+ui.width = 1140; ui.height = 1880;
+const uiTex = new THREE.CanvasTexture(ui);
+uiTex.colorSpace = THREE.SRGBColorSpace;
+uiTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+const screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(57, 94), new THREE.MeshStandardMaterial({ map: uiTex, roughness: 0.95, metalness: 0 }));
+screenMesh.position.z = 5.6;
+module.add(screenMesh);
+const glass = new THREE.Mesh(new THREE.PlaneGeometry(57, 94), new THREE.MeshPhysicalMaterial({ color: 0x000000, roughness: 0.06, metalness: 0, transparent: true, opacity: 0.12, depthWrite: false }));
+glass.position.z = 5.64;
+module.add(glass);
+
+// Électronique (repère de place)
+const pcb = part('pcb', 24);
+add(pcb, new THREE.BoxGeometry(58, 108, 1.2).translate(0, 0, 0.9), pcbMat);
+add(pcb, new THREE.BoxGeometry(18, 25.5, 3).translate(-14, 30, -1.2), metalMat);
+add(pcb, new THREE.BoxGeometry(24, 28, 2.5).translate(13, 30, -0.95), metalMat);
+add(pcb, new THREE.BoxGeometry(9, 7.4, 3.2).translate(0, -51.5, -1.3), metalMat);
+const battery = part('battery', 10);
+add(battery, new THREE.BoxGeometry(50, 62, 4.4).translate(0, -15, -2.5), battMat);
+
+// Sol (ombre seulement)
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), new THREE.ShadowMaterial({ opacity: 0.2 }));
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -P.b2 - 0.05;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ---------- Interface e-paper : 4 niveaux de gris seulement ----------
+function chamferRect(c, x, y, w, h, k) {
+  c.beginPath();
+  c.moveTo(x + k, y); c.lineTo(x + w - k, y); c.lineTo(x + w, y + k); c.lineTo(x + w, y + h - k);
+  c.lineTo(x + w - k, y + h); c.lineTo(x + k, y + h); c.lineTo(x, y + h - k); c.lineTo(x, y + k);
+  c.closePath(); c.fill();
+}
+function drawUI() {
+  const c = ui.getContext('2d'), W = ui.width, H = ui.height;
+  const A = '#1b1b1b', A2 = '#5c5b57', A3 = '#a3a19b', BG = '#dedcd5';
+  const F = s => `${s}px "VT323", "IBM Plex Mono", monospace`;
+  c.fillStyle = BG; c.fillRect(0, 0, W, H);
+  const m = 84;
+  c.textBaseline = 'alphabetic';
+  c.fillStyle = A; c.font = F(72); c.textAlign = 'left'; c.fillText('14:32', m, 130);
+  const bx = W - m - 76;
+  c.strokeStyle = A; c.lineWidth = 5; c.strokeRect(bx, 94, 68, 36);
+  c.fillRect(bx + 68, 104, 7, 16); c.fillRect(bx + 8, 102, 42, 20);
+  for (let i = 0; i < 4; i++) { const h = 14 + i * 9; c.fillStyle = i < 3 ? A : A3; c.fillRect(bx - 110 + i * 22, 130 - h, 14, h); }
+  c.fillStyle = A; c.textAlign = 'right'; c.font = F(64); c.fillText('4G', bx - 126, 130);
+
+  const px = 26, fx = W / 2 - (11 * px) / 2, fy = 220;
+  c.fillStyle = A;
+  for (const ox of [0, 7]) for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+    if (i === 0 || i === 3 || j === 0 || j === 3) c.fillRect(fx + (ox + i) * px + 2, fy + j * px + 2, px - 4, px - 4);
+  }
+  const mx = W / 2 - (9 * px) / 2, my = fy + 5.5 * px;
+  for (let i = 0; i < 9; i++) c.fillRect(mx + i * px + 2, my + (i % 2 ? px : 0) + 2, px - 4, px - 4);
+  c.fillStyle = A2; c.textAlign = 'center'; c.font = F(56);
+  c.fillText('Pamk · au bureau · synchro 14:30', W / 2, fy + 9.5 * px + 44);
+
+  const rows = [
+    ['Messages', '3', 'Insta 2 · SMS 1'],
+    ['Appels', '', '1 appel manqué'],
+    ['Tâches', '5', 'synchronisées avec Pamk'],
+    ['Notes vocales', '', 'dernière à 09:12'],
+  ];
+  let y = 600;
+  c.fillStyle = A3; c.fillRect(m, y, W - 2 * m, 3);
+  for (const [name, badge, sub] of rows) {
+    c.textAlign = 'left'; c.fillStyle = A; c.font = F(112); c.fillText(name, m, y + 140);
+    c.fillStyle = A2; c.font = F(58); c.fillText(sub, m, y + 206);
+    if (badge) {
+      const bw = 92;
+      c.fillStyle = A; chamferRect(c, W - m - bw, y + 74, bw, 84, 16);
+      c.fillStyle = BG; c.textAlign = 'center'; c.font = F(88); c.fillText(badge, W - m - bw / 2, y + 140);
+    } else {
+      c.fillStyle = A2; c.textAlign = 'right'; c.font = F(96); c.fillText('›', W - m - 24, y + 140);
+    }
+    y += 250;
+    c.fillStyle = A3; c.fillRect(m, y, W - 2 * m, 3);
+  }
+  c.textAlign = 'left'; c.fillStyle = A2; c.font = F(58); c.fillText('POMODORO SUR PAMK', m, 1706);
+  c.textAlign = 'right'; c.fillStyle = A; c.font = F(108); c.fillText('18:42', W - m, 1718);
+  c.fillStyle = A3; c.fillRect(m, 1762, W - 2 * m, 18);
+  c.fillStyle = A; c.fillRect(m, 1762, (W - 2 * m) * 0.25, 18);
+  uiTex.needsUpdate = true;
+}
+drawUI();
+if (document.fonts && document.fonts.load) {
+  document.fonts.load('112px "VT323"').then(drawUI).catch(() => {});
+}
+
+// ---------- Étiquettes de la vue éclatée ----------
+const tagsEl = document.getElementById('tags');
+// Chaque étiquette a sa ligne (en haut ou en bas de la scène) pour ne jamais se chevaucher.
+const tagDefs = [
+  { part: 'bezel', anchor: [0, 60.5, 4.7], dir: 'up', row: 0, t: 'Cadre avant', s: 'imprimé' },
+  { part: 'pcb', anchor: [0, 54, 0.9], dir: 'up', row: 1, t: 'Carte + modem 4G', s: '' },
+  { part: 'shell', anchor: [0, 59.6, -1.3], dir: 'up', row: 2, t: 'Coque', s: 'imprimée' },
+  { part: 'module', anchor: [0, -52.6, 4], dir: 'down', row: 2, t: 'Écran e-paper 4,26″', s: 'tactile' },
+  { part: 'battery', anchor: [0, -46, -2.5], dir: 'down', row: 1, t: 'Batterie LiPo', s: '' },
+  { part: 'plate', anchor: [0, -32, -7], dir: 'down', row: 0, t: 'Plaque aimantée', s: 'imprimée' },
+];
+for (const d of tagDefs) {
+  const el = document.createElement('div');
+  el.className = 'tag ' + d.dir;
+  const line = document.createElement('span');
+  line.className = 'lead-line';
+  const txt = document.createElement('span');
+  txt.className = 'txt';
+  txt.textContent = d.t;
+  if (d.s) { const em = document.createElement('em'); em.textContent = d.s; txt.appendChild(em); }
+  const dot = document.createElement('span');
+  dot.className = 'dot';
+  el.append(line, txt, dot);
+  tagsEl.appendChild(el);
+  Object.assign(d, { el, line, txt, v: V(...d.anchor) });
+}
+const tmp = new THREE.Vector3();
+const hintEl = document.getElementById('hint');
+const LH = 23, ROW0 = 46, ROWSTEP = 30;
+function updateTags(w, h, o) {
+  hintEl.style.opacity = String(1 - o);
+  for (const d of tagDefs) {
+    if (o < 0.02) { d.el.style.opacity = 0; continue; }
+    tmp.copy(d.v).add(parts[d.part].position).project(camera);
+    const x = (tmp.x + 1) / 2 * w, y = (1 - tmp.y) / 2 * h;
+    const edge = ROW0 + d.row * ROWSTEP + LH;
+    const lead = Math.max(8, d.dir === 'up' ? y - edge : (h - edge) - y);
+    d.line.style.height = lead.toFixed(1) + 'px';
+    d.txt.style[d.dir === 'up' ? 'bottom' : 'top'] = lead.toFixed(1) + 'px';
+    d.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    d.el.style.opacity = tmp.z < 1 ? o : 0;
+  }
+}
+
+// ---------- Vues ----------
+const VIEWS = {
+  'trois-quarts': { pos: [205, 80, 195], explode: 0, need: 0.66 },
+  face: { pos: [0, 0, 300], explode: 0, need: 0.66 },
+  dos: { pos: [0, 0, -300], explode: 0, need: 0.66 },
+  profil: { pos: [300, 0, 0.01], explode: 0, need: 0.5 },
+  dessous: { pos: [60, -250, 170], explode: 0, need: 0.66 },
+  eclate: { pos: [250, 120, 210], explode: 1, need: 1.25 },
+};
+let current = 'trois-quarts', tween = null, explode = 0, explodeTarget = 0;
+function viewSpherical(name) {
+  const v = VIEWS[name];
+  const s = new THREE.Spherical().setFromVector3(V(...v.pos));
+  s.radius *= Math.max(1, v.need / camera.aspect);
+  return s;
+}
+function goTo(name, instant = false) {
+  current = name;
+  explodeTarget = VIEWS[name].explode;
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === name)));
+  const to = viewSpherical(name);
+  if (instant || reduceMotion) {
+    camera.position.setFromSpherical(to);
+    tween = null;
+    if (reduceMotion || instant) explode = explodeTarget;
+    return;
+  }
+  const from = new THREE.Spherical().setFromVector3(camera.position);
+  let dT = to.theta - from.theta;
+  dT = Math.atan2(Math.sin(dT), Math.cos(dT));
+  tween = { from, dT, to, t0: performance.now(), dur: 950 };
+}
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => goTo(b.dataset.view)));
+controls.addEventListener('start', () => { tween = null; });
+
+// ---------- Configuration ----------
+const state = { coque: 'olive', cadre: 'noir', plaque: 'noir', finition: 'fdm' };
+const finishNote = document.getElementById('finish-note');
+function apply() {
+  shellMat.color.set(COLORS[state.coque]);
+  bezelMat.color.set(state.cadre === 'noir' ? COLORS.noir : COLORS[state.coque]);
+  plateMat.color.set(COLORS[state.plaque]);
+  document.getElementById('chip-assorti').style.setProperty('--c', COLORS[state.coque]);
+  const fdm = state.finition === 'fdm';
+  layer.uLayer.value = fdm ? 0.22 : 0;
+  for (const m of printedMats) m.roughness = fdm ? 0.8 : 0.4;
+  finishNote.textContent = fdm
+    ? 'Couches de 0,2 mm sur les flancs : zoome sur le côté pour les voir.'
+    : 'Surface lisse et reflets plus nets. Même forme, chanfreins plus fins possibles.';
+}
+document.querySelectorAll('[data-group]').forEach(b => b.addEventListener('click', () => {
+  state[b.dataset.group] = b.dataset.value;
+  document.querySelectorAll(`[data-group="${b.dataset.group}"]`).forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+  apply();
+}));
+apply();
+
+// ---------- Boucle ----------
+let W = 1, H = 1;
+function resize() {
+  W = Math.max(1, stage.clientWidth); H = Math.max(1, stage.clientHeight);
+  renderer.setSize(W, H, false);
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+goTo('trois-quarts', true);
+
+const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+let last = performance.now();
+renderer.setAnimationLoop(now => {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (tween) {
+    const k = Math.min(1, (now - tween.t0) / tween.dur), e = ease(k);
+    const s = new THREE.Spherical(
+      tween.from.radius + (tween.to.radius - tween.from.radius) * e,
+      tween.from.phi + (tween.to.phi - tween.from.phi) * e,
+      tween.from.theta + tween.dT * e);
+    camera.position.setFromSpherical(s);
+    if (k >= 1) tween = null;
+  }
+  explode += (explodeTarget - explode) * (1 - Math.exp(-dt * 5));
+  if (Math.abs(explodeTarget - explode) < 0.001) explode = explodeTarget;
+  const e = ease(explode);
+  for (const g of Object.values(parts)) g.position.z = g.userData.offset * e;
+  controls.update();
+  renderer.render(scene, camera);
+  updateTags(W, H, Math.max(0, (explode - 0.5) * 2));
+});
+</script>
