@@ -1,4 +1,5 @@
 #include "horloge.h"
+#include "langue.h"
 #include <Wire.h>
 #include <sys/time.h>
 #include <esp_sntp.h>
@@ -268,18 +269,28 @@ static const char* const MOIS[12] = {"janvier", "février", "mars", "avril", "ma
                                      "juillet", "août", "septembre", "octobre", "novembre", "décembre"};
 static const char* const MOIS_COURTS[12] = {"janv.", "févr.", "mars", "avr.", "mai", "juin",
                                             "juil.", "août", "sept.", "oct.", "nov.", "déc."};
+static const char* const INITIALES[7] = {"L", "M", "M", "J", "V", "S", "D"};
+// Anglais (01/11/2026) : même ordre des mots que le français (« Sunday 1 November »).
+static const char* const JOURS_EN[7] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
+static const char* const JOURS_COURTS_EN[7] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+static const char* const MOIS_EN[12] = {"January", "February", "March", "April", "May", "June",
+                                        "July", "August", "September", "October", "November", "December"};
+static const char* const MOIS_COURTS_EN[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+static const char* const INITIALES_EN[7] = {"M", "T", "W", "T", "F", "S", "S"};
 
-const char* nomJour(int l0) { return JOURS[((l0 % 7) + 7) % 7]; }
-const char* nomJourCourt(int l0) { return JOURS_COURTS[((l0 % 7) + 7) % 7]; }
-const char* nomMois(int m) { return MOIS[borner(m, 1, 12) - 1]; }
-const char* nomMoisCourt(int m) { return MOIS_COURTS[borner(m, 1, 12) - 1]; }
+const char* nomJour(int l0) { return (anglais() ? JOURS_EN : JOURS)[((l0 % 7) + 7) % 7]; }
+const char* nomJourCourt(int l0) { return (anglais() ? JOURS_COURTS_EN : JOURS_COURTS)[((l0 % 7) + 7) % 7]; }
+const char* nomMois(int m) { return (anglais() ? MOIS_EN : MOIS)[borner(m, 1, 12) - 1]; }
+const char* nomMoisCourt(int m) { return (anglais() ? MOIS_COURTS_EN : MOIS_COURTS)[borner(m, 1, 12) - 1]; }
+const char* initialeJour(int l0) { return (anglais() ? INITIALES_EN : INITIALES)[((l0 % 7) + 7) % 7]; }
 
 void texteHeure(char* b, size_t n, const struct tm& t) { snprintf(b, n, "%02d:%02d", t.tm_hour, t.tm_min); }
 
 void texteDateLongue(char* b, size_t n, int date, bool annee) {
   int a, m, j;
   decomposer(date, a, m, j);
-  const char* jour1 = (j == 1) ? "1er" : nullptr;
+  const char* jour1 = (j == 1 && !anglais()) ? "1er" : nullptr;
   if (annee) {
     if (jour1) snprintf(b, n, "%s %s %s %d", nomJour(jourSemaine(date)), jour1, nomMois(m), a);
     else snprintf(b, n, "%s %d %s %d", nomJour(jourSemaine(date)), j, nomMois(m), a);
@@ -297,10 +308,11 @@ void texteDateCourte(char* b, size_t n, int date) {
 
 void texteDateRelative(char* b, size_t n, int date) {
   const int e = ecartJours(aujourdhui(), date);
-  if (e == 0) snprintf(b, n, "aujourd'hui");
-  else if (e == 1) snprintf(b, n, "demain");
-  else if (e == -1) snprintf(b, n, "hier");
-  else if (e == 2) snprintf(b, n, "après-demain");
+  const bool en = anglais();
+  if (e == 0) snprintf(b, n, en ? "today" : "aujourd'hui");
+  else if (e == 1) snprintf(b, n, en ? "tomorrow" : "demain");
+  else if (e == -1) snprintf(b, n, en ? "yesterday" : "hier");
+  else if (e == 2) snprintf(b, n, en ? "in 2 days" : "après-demain");
   else texteDateCourte(b, n, date);
 }
 

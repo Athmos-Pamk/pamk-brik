@@ -1,4 +1,5 @@
 #include "minuteries.h"
+#include "langue.h"
 #include "horloge.h"
 #include "parametres.h"
 #include "stats.h"
@@ -113,10 +114,10 @@ int pomoRestantS() {
 
 const char* nomPhase(PhasePomo p) {
   switch (p) {
-    case POMO_TRAVAIL: return "Travail";
-    case POMO_PAUSE:   return "Pause";
-    case POMO_LONGUE:  return "Grande pause";
-    default:           return "Prêt";
+    case POMO_TRAVAIL: return tr("Travail");   // tr() : glissé dans des phrases (langue.h)
+    case POMO_PAUSE:   return tr("Pause");
+    case POMO_LONGUE:  return tr("Grande pause");
+    default:           return tr("Prêt");
   }
 }
 

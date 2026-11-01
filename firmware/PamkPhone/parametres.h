@@ -31,6 +31,7 @@ struct Parametres {
   bool nePasDeranger;        // mode Ne pas déranger (coupe alertes/rappels visuels)
   char icalUrl[256];         // adresse iCal secrète de l'agenda (vide = pas d'agenda). Secret :
                              // jamais dans le journal série.
+  uint8_t langue;            // 01/11/2026 : LANGUE_FR (0, défaut) ou LANGUE_EN (1), voir langue.h
 };
 
 extern Parametres Param;

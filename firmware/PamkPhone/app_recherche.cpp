@@ -7,6 +7,7 @@
 #include "ui.h"
 #include "horloge.h"
 #include "stockage.h"
+#include "langue.h"
 
 namespace {
 
@@ -182,8 +183,8 @@ class AppRecherche : public App {
       return;
     }
     char resume[40];
-    if (n == 0) snprintf(resume, sizeof(resume), "Aucun résultat");
-    else snprintf(resume, sizeof(resume), "%d résultat%s", n, n > 1 ? "s" : "");
+    if (n == 0) snprintf(resume, sizeof(resume), TR("Aucun résultat"));
+    else snprintf(resume, sizeof(resume), TR("%d résultat%s"), n, n > 1 ? "s" : "");
     Dessin::texte(F_PETITE, MARGE, RESUME_Y, resume, GRIS_FONCE);
     if (n == 0) {
       UI::messageVide(LISTE_Y + 60, "Rien trouvé", "Essaie un autre mot.");
@@ -308,15 +309,15 @@ class AppRecherche : public App {
   // « Tâche · demain · 9:00 », « Tâche faite »…
   static void descriptionTache(const Tache* t, char* b, size_t n) {
     if (t->faite) {
-      snprintf(b, n, "Tâche faite");
+      snprintf(b, n, TR("Tâche faite"));
       return;
     }
-    snprintf(b, n, "Tâche");
+    snprintf(b, n, TR("Tâche"));
     size_t o = strlen(b);
     if (t->echeance) {
       char d[24];
       Horloge::texteDateRelative(d, sizeof(d), t->echeance);
-      snprintf(b + o, n - o, " · %s%s", t->echeance < Horloge::aujourdhui() ? "en retard, " : "", d);
+      snprintf(b + o, n - o, " · %s%s", t->echeance < Horloge::aujourdhui() ? TR("en retard, ") : "", d);
       o = strlen(b);
     }
     if (t->heure >= 0 && o < n) snprintf(b + o, n - o, " · %d:%02d", t->heure / 60, t->heure % 60);

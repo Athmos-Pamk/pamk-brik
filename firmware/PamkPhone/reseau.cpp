@@ -3,6 +3,7 @@
 #include "parametres.h"
 #include "agenda.h"
 #include "meteo.h"
+#include "langue.h"
 #include <WiFi.h>
 #include <Preferences.h>
 
@@ -62,7 +63,7 @@ void demarrer() {
 EtatReseau etat() { return s_etat; }
 bool occupe() { return s_etat == RESEAU_RECHERCHE || s_etat == RESEAU_CONNEXION || s_etat == RESEAU_SCAN; }
 bool actif() { return WiFi.getMode() != WIFI_OFF; }
-const char* texteEtat() { return s_texte; }
+const char* texteEtat() { return tr(s_texte); }   // glissé dans « Agenda : %s »
 const char* ssidActuel() { return s_ssid; }
 
 int barres() {
@@ -247,7 +248,7 @@ void connecter(const char* ssid, const char* mdp, bool memoriserReseau) {
   s_t0 = millis();
   s_memoriser = memoriserReseau;
   s_pourHeure = Param.wifiMode != 2 && !s_garde;
-  snprintf(s_texte, sizeof(s_texte), "Connexion à %s…", s_ssid);
+  snprintf(s_texte, sizeof(s_texte), TR("Connexion à %s…"), s_ssid);
 }
 
 bool lancerScan() {
@@ -331,7 +332,7 @@ void boucle() {
       if (st == WL_CONNECTED) {
         s_etat = RESEAU_CONNECTE;
         s_t0 = m;
-        snprintf(s_texte, sizeof(s_texte), "Connecté à %s", s_ssid);
+        snprintf(s_texte, sizeof(s_texte), TR("Connecté à %s"), s_ssid);
         JOURNAL("[wifi] %s, IP %s", s_texte, WiFi.localIP().toString().c_str());
         if (s_memoriser) memoriser(s_ssid, s_mdp);
         s_synchroAvant = Horloge::derniereSynchro();
@@ -340,7 +341,7 @@ void boucle() {
         Horloge::lancerNTP(Param.ntp);
       } else if (st == WL_CONNECT_FAILED || st == WL_NO_SSID_AVAIL || m - s_t0 > DELAI_CONNEXION_MS) {
         char msg[80];
-        snprintf(msg, sizeof(msg), "Échec de connexion à %s", s_ssid);
+        snprintf(msg, sizeof(msg), TR("Échec de connexion à %s"), s_ssid);
         echec(msg);
       }
       break;
@@ -382,7 +383,7 @@ void boucle() {
         radioOff();
         s_etat = RESEAU_ETEINT;
       }
-      snprintf(s_texte, sizeof(s_texte), "%d réseau(x) trouvé(s)", s_nbScan);
+      snprintf(s_texte, sizeof(s_texte), TR("%d réseau(x) trouvé(s)"), s_nbScan);
       break;
     }
     default:

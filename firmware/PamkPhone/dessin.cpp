@@ -1,5 +1,6 @@
 #include "dessin.h"
 #include "ecran.h"
+#include "langue.h"
 #include <math.h>
 #include <string.h>
 
@@ -199,7 +200,11 @@ int largeurN(const GFXfont* p, const char* s, int nbOctets) {
   return l;
 }
 
-int largeur(const GFXfont* p, const char* s) { return largeurN(p, s, (int)strlen(s)); }
+// 01/11/2026 : les textes entiers passent par tr() (langue.h) ; les morceaux (largeurN, texteN)
+// non, ils viennent de textes déjà traduits ou écrits par l'utilisateur.
+static int largeurBrute(const GFXfont* p, const char* s) { return largeurN(p, s, (int)strlen(s)); }
+
+int largeur(const GFXfont* p, const char* s) { return largeurBrute(p, tr(s)); }
 
 int hautCapitale(const GFXfont* p) {
   const GFXglyph* g = glyphe(p, 'H');
@@ -254,25 +259,29 @@ int texteN(const GFXfont* p, int x, int y, const char* s, int nbOctets, uint8_t 
 }
 
 int texte(const GFXfont* p, int x, int y, const char* s, uint8_t c) {
+  s = tr(s);
   return texteN(p, x, y, s, (int)strlen(s), c);
 }
 
 void texteCentre(const GFXfont* p, int cx, int y, const char* s, uint8_t c) {
-  texte(p, cx - largeur(p, s) / 2, y, s, c);
+  s = tr(s);
+  texteN(p, cx - largeurBrute(p, s) / 2, y, s, (int)strlen(s), c);
 }
 
 void texteDroite(const GFXfont* p, int xDroite, int y, const char* s, uint8_t c) {
-  texte(p, xDroite - largeur(p, s), y, s, c);
+  s = tr(s);
+  texteN(p, xDroite - largeurBrute(p, s), y, s, (int)strlen(s), c);
 }
 
 int texteTronque(const GFXfont* p, int x, int y, int largeurMax, const char* s, uint8_t c) {
-  const int l = largeur(p, s);
+  s = tr(s);
+  const int l = largeurBrute(p, s);
   if (l <= largeurMax) {
-    texte(p, x, y, s, c);
+    texteN(p, x, y, s, (int)strlen(s), c);
     return l;
   }
   static const char ELLIPSE[] = "\xE2\x80\xA6";   // …
-  const int le = largeur(p, ELLIPSE);
+  const int le = largeurBrute(p, ELLIPSE);
   int n = 0, lc = 0;
   const char* q = s;
   while (*q) {
@@ -285,7 +294,7 @@ int texteTronque(const GFXfont* p, int x, int y, int largeurMax, const char* s, 
     n = (int)(q - s);
   }
   int xf = texteN(p, x, y, s, n, c);
-  xf = texte(p, xf, y, ELLIPSE, c);
+  xf = texteN(p, xf, y, ELLIPSE, (int)strlen(ELLIPSE), c);
   return xf - x;
 }
 

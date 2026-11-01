@@ -6,6 +6,7 @@
 #include "systeme.h"
 #include "ui.h"
 #include "horloge.h"
+#include "langue.h"
 #include <Preferences.h>
 
 namespace {
@@ -190,9 +191,9 @@ class AppHabitudes : public App {
       // Série (Streak)
       char txtStreak[28];
       if (g_habitudes[idx].streak > 0) {
-        snprintf(txtStreak, sizeof(txtStreak), "%d j d'affilée", g_habitudes[idx].streak);
+        snprintf(txtStreak, sizeof(txtStreak), TR("%d j d'affilée"), g_habitudes[idx].streak);
       } else {
-        snprintf(txtStreak, sizeof(txtStreak), "À commencer");
+        snprintf(txtStreak, sizeof(txtStreak), TR("À commencer"));
       }
       Dessin::texte(F_PETITE, texteX, y + 66, txtStreak, GRIS_FONCE);
 
@@ -234,7 +235,7 @@ class AppHabitudes : public App {
     // Bandeau récapitulatif en bas
     const int basY = 824;
     char resume[48];
-    snprintf(resume, sizeof(resume), "%d / %d rituels validés aujourd'hui", totalCompletes, g_nbHabitudes);
+    snprintf(resume, sizeof(resume), TR("%d / %d rituels validés aujourd'hui"), totalCompletes, g_nbHabitudes);
     Dessin::texteCentre(F_GRAS, ECRAN_L / 2, basY, resume, NOIR);
 
     // Barre de progression globale
@@ -282,7 +283,7 @@ class AppHabitudes : public App {
     if (code >= C_SUPPR_0 && code < C_SUPPR_0 + g_nbHabitudes) {
       const int idx = code - C_SUPPR_0;
       char msg[64];
-      snprintf(msg, sizeof(msg), "Supprimer « %s » ?", g_habitudes[idx].titre);
+      snprintf(msg, sizeof(msg), TR("Supprimer « %s » ?"), g_habitudes[idx].titre);
       Systeme::ouvrir(appDialogue("Supprimer l'habitude", msg, "Supprimer", rappelSuppression, (void*)(intptr_t)idx));
       return;
     }

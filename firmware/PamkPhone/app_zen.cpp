@@ -5,6 +5,7 @@
 #include "systeme.h"
 #include "ui.h"
 #include "horloge.h"
+#include "langue.h"
 
 namespace {
 
@@ -166,7 +167,7 @@ class AppZen : public App {
 
       // Durée de la phase (pas de compteur à la seconde : voir seconde())
       char txtSec[24];
-      snprintf(txtSec, sizeof(txtSec), "%d secondes", dPhase);
+      snprintf(txtSec, sizeof(txtSec), TR("%d secondes"), dPhase);
       Dessin::texteCentre(F_GRAS, cx, 638, txtSec, GRIS_FONCE);
 
       // Avancement global

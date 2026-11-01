@@ -12,12 +12,13 @@
 #include "polices.h"
 #include "stats.h"
 #include "agenda.h"
+#include "langue.h"
 #include <esp_heap_caps.h>
 
 namespace {
 
 enum Code {
-  P_WIFI, P_HEURE, P_ECRAN, P_ENERGIE, P_POMODORO, P_BOUTONS, P_PRENOM, P_APROPOS, P_DONNEES,
+  P_WIFI, P_HEURE, P_ECRAN, P_ENERGIE, P_POMODORO, P_BOUTONS, P_PRENOM, P_APROPOS, P_DONNEES, P_LANGUE,
   W_MODE, W_SYNCHRO, W_CHERCHER, W_OUBLIER, W_RESEAU, W_ETEINDRE,
   H_FUSEAU, H_NTP, H_PLUS, H_MOINS, H_ENREGISTRER,
   E_ORIENTATION, E_MODE, E_COMPLET, E_NETTOYER, E_MIRE, E_TOUCHER, E_CLAVIER, E_TAILLE,
@@ -57,7 +58,7 @@ const char* nomFuseau() {
 }
 
 void texteVeille(uint16_t s, char* b, size_t n) {
-  if (s == 0) snprintf(b, n, "jamais");
+  if (s == 0) snprintf(b, n, TR("jamais"));
   else if (s < 60) snprintf(b, n, "%u s", (unsigned)s);
   else snprintf(b, n, "%u min", (unsigned)(s / 60));
 }
@@ -102,6 +103,7 @@ class AppReglages : public App {
       case P_BOUTONS:  aller(PAGE_BOUTONS); return;
       case P_APROPOS:  aller(PAGE_APROPOS); return;
       case P_DONNEES:  aller(PAGE_DONNEES); return;
+      case P_LANGUE:   Param.langue = anglais() ? LANGUE_FR : LANGUE_EN; sauver = true; break;
       case P_PRENOM:
         Systeme::ouvrir(appClavier("Ton prénom", Param.prenom, sizeof(Param.prenom) - 1, SAISIE_LIGNE, rappelPrenom, nullptr));
         return;
@@ -125,7 +127,7 @@ class AppReglages : public App {
           m_page = PAGE_WIFI;
         } else {
           char titre[64];
-          snprintf(titre, sizeof(titre), "Mot de passe de %s", m_ssid);
+          snprintf(titre, sizeof(titre), TR("Mot de passe de %s"), m_ssid);
           Systeme::ouvrir(appClavier(titre, "", 64, SAISIE_MOT_DE_PASSE, rappelMotDePasse, this));
           return;
         }
@@ -320,7 +322,7 @@ class AppReglages : public App {
     static const char* const MODES[3] = {"éteint", "auto", "toujours"};
     char v[48];
     int y = CONTENU_Y;
-    if (Reseau::etat() == RESEAU_CONNECTE) snprintf(v, sizeof(v), "connecté");
+    if (Reseau::etat() == RESEAU_CONNECTE) snprintf(v, sizeof(v), TR("connecté"));
     else snprintf(v, sizeof(v), "%s", MODES[Param.wifiMode % 3]);
     UI::ligneReglage(y, "Wi-Fi", v, P_WIFI); y += RANG_H;
     if (Horloge::valide()) {
@@ -328,7 +330,7 @@ class AppReglages : public App {
       Horloge::locale(t);
       Horloge::texteHeure(v, sizeof(v), t);
     } else {
-      snprintf(v, sizeof(v), "à régler");
+      snprintf(v, sizeof(v), TR("à régler"));
     }
     UI::ligneReglage(y, "Heure et date", v, P_HEURE); y += RANG_H;
     UI::ligneReglage(y, "Écran", Param.modeMaj == MAJ_DOUX ? "doux" : "pixels", P_ECRAN); y += RANG_H;
@@ -340,8 +342,10 @@ class AppReglages : public App {
       UI::ligneReglage(y, "Boutons", Param.inverserVolume ? "inversés" : "normaux", P_BOUTONS); y += RANG_H;
     }
     UI::ligneReglage(y, "Prénom", Param.prenom[0] ? Param.prenom : "—", P_PRENOM); y += RANG_H;
+    // 01/11/2026 : 9 lignes, jusqu'à y = 888 (une de plus avec les boutons : à resserrer alors)
+    UI::ligneReglage(y, "Langue", anglais() ? "English" : "Français", P_LANGUE); y += RANG_H;
     UI::ligneReglage(y, "À propos", "V0 " PAMK_VERSION, P_APROPOS); y += RANG_H;
-    snprintf(v, sizeof(v), "%d tâches · %d notes", Stockage::nbTaches(), Stockage::nbNotes());
+    snprintf(v, sizeof(v), TR("%d tâches · %d notes"), Stockage::nbTaches(), Stockage::nbNotes());
     UI::ligneReglage(y, "Données", v, P_DONNEES);
   }
 
@@ -415,8 +419,8 @@ class AppReglages : public App {
     }
     Dessin::texteCentre(F_GRANDE, ECRAN_L / 2, 246, h, NOIR);
     Dessin::texteCentre(F_GRAS, ECRAN_L / 2, 292, d, NOIR);
-    snprintf(l, sizeof(l), "Source : %s · horloge de la carte : %s", Horloge::source(),
-             Horloge::rtcPresente() ? "oui" : "absente");
+    snprintf(l, sizeof(l), TR("Source : %s · horloge de la carte : %s"), tr(Horloge::source()),
+             tr(Horloge::rtcPresente() ? "oui" : "absente"));
     Dessin::texteCentre(F_PETITE, ECRAN_L / 2, 330, l, GRIS_FONCE);
     UI::ligneReglage(348, "Fuseau horaire", nomFuseau(), H_FUSEAU);
     UI::ligneReglage(348 + RANG_H, "Mettre à l'heure par Wi-Fi", "", H_NTP);
@@ -456,7 +460,7 @@ class AppReglages : public App {
     };
     for (int i = 0; i < 2; i++) Dessin::texte(F_PETITE, MARGE, y + i * 30, aide[i], GRIS_FONCE);
     char info[112];
-    snprintf(info, sizeof(info), "Dernière mise à jour : %s, %lu ms", Ecran::dernierMode(),
+    snprintf(info, sizeof(info), TR("Dernière mise à jour : %s, %lu ms"), tr(Ecran::dernierMode()),
              (unsigned long)Ecran::dureeDerniereMs());
     Dessin::texteTronque(F_PETITE, MARGE, 920, ECRAN_L - 2 * MARGE, info, GRIS);
   }
@@ -480,15 +484,15 @@ class AppReglages : public App {
     int y = CONTENU_Y;
     texteVeille(Param.veilleS, v, sizeof(v));
     UI::ligneReglage(y, "Mise en veille après", v, N_VEILLE); y += RANG_H;
-    if (Param.horlogeVeilleMin) snprintf(v, sizeof(v), "toutes les %u min", (unsigned)Param.horlogeVeilleMin);
+    if (Param.horlogeVeilleMin) snprintf(v, sizeof(v), TR("toutes les %u min"), (unsigned)Param.horlogeVeilleMin);
     else snprintf(v, sizeof(v), "non");
     UI::ligneReglage(y, "Heure en veille", v, N_HORLOGE); y += RANG_H;
     UI::ligneInterrupteur(y, "Veille légère", Param.veilleLegere, N_LEGERE); y += RANG_H;
     UI::ligneInterrupteur(y, "Veille même branché au PC", Param.veilleSurUSB, N_USB); y += RANG_H;
     UI::ligneInterrupteur(y, "Mode nuit (23 h - 7 h)", Param.ecoNuit, N_NUIT); y += RANG_H;
     UI::ligneInterrupteur(y, "Mode Ne pas déranger", Param.nePasDeranger, N_NPD); y += RANG_H;
-    if (Param.sommeilApresH) snprintf(v, sizeof(v), "après %u h", (unsigned)Param.sommeilApresH);
-    else snprintf(v, sizeof(v), "jamais");
+    if (Param.sommeilApresH) snprintf(v, sizeof(v), TR("après %u h"), (unsigned)Param.sommeilApresH);
+    else snprintf(v, sizeof(v), TR("jamais"));
     UI::ligneReglage(y, "Sommeil profond", v, N_PROFOND); y += RANG_H;
     // Bloc batterie compact : 7 lignes de réglages au-dessus, boutons en 836 (29/10/2026).
     UI::etiquette(MARGE, y + 16, "BATTERIE");
@@ -497,7 +501,7 @@ class AppReglages : public App {
       const int mv = Energie::millivolts();
       snprintf(b, sizeof(b), "%d,%02d V · %d %%", mv / 1000, (mv % 1000) / 10, Energie::pourcentage());
     } else {
-      snprintf(b, sizeof(b), "pas encore mesurée");
+      snprintf(b, sizeof(b), TR("pas encore mesurée"));
     }
     Dessin::texte(F_GRAS, MARGE, y + 52, b, NOIR);
     const char* usb = Energie::usbOrdinateur() ? "Ordinateur USB" :
@@ -505,7 +509,7 @@ class AppReglages : public App {
     char ligne[96];
     char autonomie[48];
     if (Energie::texteAutonomie(autonomie, sizeof(autonomie))) {
-      snprintf(ligne, sizeof(ligne), "%s · autonomie %s", usb, autonomie);
+      snprintf(ligne, sizeof(ligne), TR("%s · autonomie %s"), usb, autonomie);
     } else {
       snprintf(ligne, sizeof(ligne), "%s", usb);
     }
@@ -572,23 +576,23 @@ class AppReglages : public App {
     Dessin::texteCentre(F_PIXEL, ECRAN_L / 2, CONTENU_Y + 214, "V0 - " PAMK_VERSION, GRIS_FONCE);
     char l[10][80];
     const int mv = Energie::millivolts();
-    snprintf(l[0], 80, "Carte : LilyGO T5 4.7\" ESP32-S3 (V2.3)");
-    snprintf(l[1], 80, "Batterie : %d,%02d V (%d %%)", mv / 1000, (mv % 1000) / 10, Energie::pourcentage());
-    snprintf(l[2], 80, "Mémoire libre : %lu Kio, PSRAM : %lu Kio",
+    snprintf(l[0], 80, TR("Carte : LilyGO T5 4.7\" ESP32-S3 (V2.3)"));
+    snprintf(l[1], 80, TR("Batterie : %d,%02d V (%d %%)"), mv / 1000, (mv % 1000) / 10, Energie::pourcentage());
+    snprintf(l[2], 80, TR("Mémoire libre : %lu Kio, PSRAM : %lu Kio"),
              (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024),
              (unsigned long)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
-    snprintf(l[3], 80, "Stockage : %lu / %lu Kio", (unsigned long)(Stockage::octetsUtilises() / 1024),
+    snprintf(l[3], 80, TR("Stockage : %lu / %lu Kio"), (unsigned long)(Stockage::octetsUtilises() / 1024),
              (unsigned long)(Stockage::octetsTotal() / 1024));
-    snprintf(l[4], 80, "Tactile : %s, horloge : %s", Tactile::present() ? "GT911" : "absent",
-             Horloge::rtcPresente() ? "PCF8563" : "absente");
+    snprintf(l[4], 80, TR("Tactile : %s, horloge : %s"), tr(Tactile::present() ? "GT911" : "absent"),
+             tr(Horloge::rtcPresente() ? "PCF8563" : "absente"));
     const uint64_t mac = ESP.getEfuseMac();
-    snprintf(l[5], 80, "Adresse MAC : %02X:%02X:%02X:%02X:%02X:%02X", (unsigned)(mac & 0xFF),
+    snprintf(l[5], 80, TR("Adresse MAC : %02X:%02X:%02X:%02X:%02X:%02X"), (unsigned)(mac & 0xFF),
              (unsigned)((mac >> 8) & 0xFF), (unsigned)((mac >> 16) & 0xFF), (unsigned)((mac >> 24) & 0xFF),
              (unsigned)((mac >> 32) & 0xFF), (unsigned)((mac >> 40) & 0xFF));
-    snprintf(l[6], 80, "Réveil : %s", Energie::texteCauseReveil());
-    snprintf(l[7], 80, "Écran : %lu mises à jour depuis le démarrage", (unsigned long)Ecran::nbRafraichissements());
-    snprintf(l[8], 80, "Polices Barlow et VT323 (SIL OFL 1.1)");
-    snprintf(l[9], 80, "Pilote d'écran LilyGo-EPD47 1.1.0 (GPL-3.0)");
+    snprintf(l[6], 80, TR("Réveil : %s"), Energie::texteCauseReveil());
+    snprintf(l[7], 80, TR("Écran : %lu mises à jour depuis le démarrage"), (unsigned long)Ecran::nbRafraichissements());
+    snprintf(l[8], 80, TR("Polices Barlow et VT323 (SIL OFL 1.1)"));
+    snprintf(l[9], 80, TR("Pilote d'écran LilyGo-EPD47 1.1.0 (GPL-3.0)"));
     for (int i = 0; i < 10; i++) Dessin::texte(F_PETITE, MARGE, CONTENU_Y + 270 + i * 36, l[i], i < 8 ? NOIR : GRIS_FONCE);
     UI::bouton(boite(MARGE, 836, ECRAN_L - 2 * MARGE, 76), "Revoir le premier démarrage", A_ASSISTANT);
   }
@@ -597,13 +601,13 @@ class AppReglages : public App {
     UI::barreTitre("Données", true);
     char l[96];
     int y = CONTENU_Y + 50;
-    snprintf(l, sizeof(l), "Tâches : %d (dont %d à faire)", Stockage::nbTaches(), Stockage::nbTachesAFaire());
+    snprintf(l, sizeof(l), TR("Tâches : %d (dont %d à faire)"), Stockage::nbTaches(), Stockage::nbTachesAFaire());
     Dessin::texte(F_TEXTE, MARGE, y, l, NOIR); y += 44;
-    snprintf(l, sizeof(l), "Notes : %d", Stockage::nbNotes());
+    snprintf(l, sizeof(l), TR("Notes : %d"), Stockage::nbNotes());
     Dessin::texte(F_TEXTE, MARGE, y, l, NOIR); y += 44;
-    snprintf(l, sizeof(l), "Suppressions mémorisées : %d", Stockage::nbTraces());
+    snprintf(l, sizeof(l), TR("Suppressions mémorisées : %d"), Stockage::nbTraces());
     Dessin::texte(F_TEXTE, MARGE, y, l, NOIR); y += 44;
-    snprintf(l, sizeof(l), "Flash utilisée : %lu / %lu Kio", (unsigned long)(Stockage::octetsUtilises() / 1024),
+    snprintf(l, sizeof(l), TR("Flash utilisée : %lu / %lu Kio"), (unsigned long)(Stockage::octetsUtilises() / 1024),
              (unsigned long)(Stockage::octetsTotal() / 1024));
     Dessin::texte(F_TEXTE, MARGE, y, l, NOIR); y += 70;
     const char* aide[] = {

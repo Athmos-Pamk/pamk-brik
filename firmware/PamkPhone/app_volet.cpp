@@ -9,6 +9,7 @@
 #include "reseau.h"
 #include "parametres.h"
 #include "meteo.h"
+#include "langue.h"
 
 namespace {
 
@@ -64,13 +65,13 @@ class AppVolet : public App {
 
     char etatBatt[64] = "";
     if (Energie::enCharge()) {
-      snprintf(etatBatt, sizeof(etatBatt), "En charge (USB)");
+      snprintf(etatBatt, sizeof(etatBatt), TR("En charge (USB)"));
     } else {
       char autoTxt[40] = "";
       if (Energie::texteAutonomie(autoTxt, sizeof(autoTxt))) {
-        snprintf(etatBatt, sizeof(etatBatt), "%d mV · reste %s", Energie::millivolts(), autoTxt);
+        snprintf(etatBatt, sizeof(etatBatt), TR("%d mV · reste %s"), Energie::millivolts(), autoTxt);
       } else {
-        snprintf(etatBatt, sizeof(etatBatt), "%d mV · sur batterie", Energie::millivolts());
+        snprintf(etatBatt, sizeof(etatBatt), TR("%d mV · sur batterie"), Energie::millivolts());
       }
     }
     Dessin::texte(F_PETITE, bBatt.x + 20, bBatt.y + 80, etatBatt, GRIS_FONCE);
@@ -89,8 +90,8 @@ class AppVolet : public App {
     Dessin::texte(F_GRAS, bWifi.x + 16, bWifi.y + 44, "Wi-Fi", wifiConnecte ? BLANC : NOIR);
     char wifiInfo[32];
     if (wifiConnecte) snprintf(wifiInfo, sizeof(wifiInfo), "%s", Reseau::ssidActuel());
-    else if (wifiOn) snprintf(wifiInfo, sizeof(wifiInfo), "Connexion...");
-    else snprintf(wifiInfo, sizeof(wifiInfo), "Éteint");
+    else if (wifiOn) snprintf(wifiInfo, sizeof(wifiInfo), TR("Connexion..."));
+    else snprintf(wifiInfo, sizeof(wifiInfo), TR("Éteint"));
     Dessin::texte(F_PETITE, bWifi.x + 16, bWifi.y + 80, wifiInfo, wifiConnecte ? GRIS_CLAIR : GRIS_FONCE);
     UI::zone(bWifi, V_WIFI);
 

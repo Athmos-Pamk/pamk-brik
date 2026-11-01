@@ -1,4 +1,4 @@
-// Clavier AZERTY à l'écran : lettres, accents (é è ê ë à â ç ù û î ï ô œ...), chiffres, symboles.
+// Clavier AZERTY à l'écran (QWERTY en anglais, 01/11/2026) : lettres, accents (é è ê ë à â ç ù û î ï ô œ...), chiffres, symboles.
 // Frappe (touches, effacer, curseur) : affichage rapide en noir et blanc (Systeme::redessinerRapide),
 // les gris sont corrigés quand la frappe s'arrête. Sans l'option « clavier rapide », taper à la
 // fin du texte ne fait que foncer des pixels : l'écran se met à jour sans flash.
@@ -6,6 +6,7 @@
 #include "app.h"
 #include "systeme.h"
 #include "ui.h"
+#include "langue.h"
 
 namespace {
 
@@ -33,6 +34,12 @@ const DefTouche L2[] = {TC("q"), TC("s"), TC("d"), TC("f"), TC("g"), TC("h"), TC
 const DefTouche L3[] = {MAJ, TC("w"), TC("x"), TC("c"), TC("v"), TC("b"), TC("n"), TC("'"), EFF};
 const DefTouche L4[] = {{"?123", 3, T_CHIFFRES}, TC(","), TC("é"), ESPACE, TC("."), {"àç", 3, T_ACCENTS}, ENTREE};
 
+// Anglais : lettres en QWERTY (mêmes largeurs de rangée), « - » à la place du « é ».
+const DefTouche Q1[] = {TC("q"), TC("w"), TC("e"), TC("r"), TC("t"), TC("y"), TC("u"), TC("i"), TC("o"), TC("p")};
+const DefTouche Q2[] = {TC("a"), TC("s"), TC("d"), TC("f"), TC("g"), TC("h"), TC("j"), TC("k"), TC("l"), TC("'")};
+const DefTouche Q3[] = {MAJ, TC("z"), TC("x"), TC("c"), TC("v"), TC("b"), TC("n"), TC("m"), EFF};
+const DefTouche Q4[] = {{"?123", 3, T_CHIFFRES}, TC(","), TC("-"), ESPACE, TC("."), {"àç", 3, T_ACCENTS}, ENTREE};
+
 const DefTouche A1[] = {TC("é"), TC("è"), TC("ê"), TC("ë"), TC("à"), TC("â"), TC("ä"), TC("ù"), TC("û"), TC("ü")};
 const DefTouche A2[] = {TC("ç"), TC("î"), TC("ï"), TC("ô"), TC("ö"), TC("œ"), TC("æ"), TC("ÿ"), TC("ñ"), TC("ß")};
 const DefTouche A3[] = {MAJ, TC("€"), TC("°"), TC("…"), TC("–"), TC("’"), TC("«"), TC("»"), EFF};
@@ -55,6 +62,10 @@ const Rangee COUCHES[4][4] = {
   {RG(C1), RG(C2), RG(C3), RG(C4)},
   {RG(S1), RG(S2), RG(S3), RG(S4)},
 };
+const Rangee QWERTY[4] = {RG(Q1), RG(Q2), RG(Q3), RG(Q4)};
+
+// Rangée r de la couche c, selon la langue (lettres en QWERTY en anglais).
+const Rangee& rangee(int c, int r) { return (c == 0 && anglais()) ? QWERTY[r] : COUCHES[c][r]; }
 #undef TC
 #undef MAJ
 #undef EFF
@@ -137,7 +148,7 @@ class AppClavier : public App {
     if (code == C_VOIR) { m_voir = !m_voir; Systeme::redessiner(); return; }
     if (code >= C_TOUCHE) {
       const int r = (code - C_TOUCHE) / 16, k = (code - C_TOUCHE) % 16;
-      if (r < 4 && k < COUCHES[m_couche][r].nb) appuyer(COUCHES[m_couche][r].touches[k]);
+      if (r < 4 && k < rangee(m_couche, r).nb) appuyer(rangee(m_couche, r).touches[k]);
     }
   }
 
@@ -145,7 +156,7 @@ class AppClavier : public App {
     // Appui long sur « effacer » : efface le mot précédent.
     if (code >= C_TOUCHE) {
       const int r = (code - C_TOUCHE) / 16, k = (code - C_TOUCHE) % 16;
-      if (r < 4 && k < COUCHES[m_couche][r].nb && COUCHES[m_couche][r].touches[k].action == T_EFF) {
+      if (r < 4 && k < rangee(m_couche, r).nb && rangee(m_couche, r).touches[k].action == T_EFF) {
         while (m_curseur > 0 && m_texte[m_curseur - 1] == ' ') effacer();
         while (m_curseur > 0 && m_texte[m_curseur - 1] != ' ' && m_texte[m_curseur - 1] != '\n') effacer();
         Systeme::redessinerRapide();
@@ -289,7 +300,7 @@ class AppClavier : public App {
 
   void dessinerClavier() {
     for (int r = 0; r < 4; r++) {
-      const Rangee& rg = COUCHES[m_couche][r];
+      const Rangee& rg = rangee(m_couche, r);
       const int y = CLAVIER_Y + r * (CLAVIER_TOUCHE_H + CLAVIER_ECART);
       int cumul = 0;
       for (int k = 0; k < rg.nb; k++) {

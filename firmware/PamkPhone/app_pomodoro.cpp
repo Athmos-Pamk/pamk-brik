@@ -11,6 +11,7 @@
 #include "parametres.h"
 #include "minuteries.h"
 #include "stockage.h"
+#include "langue.h"
 
 namespace {
 
@@ -59,7 +60,7 @@ void heureFin(int dansSecondes, char* b, size_t n) {
   Horloge::localeDe(Horloge::maintenant() + (uint32_t)maxi(0, dansSecondes), t);
   char h[8];
   Horloge::texteHeure(h, sizeof(h), t);
-  snprintf(b, n, "Fin à %s", h);
+  snprintf(b, n, TR("Fin à %s"), h);
 }
 
 class AppPomodoro : public App {
@@ -321,7 +322,7 @@ class AppPomodoro : public App {
         char d[24], sous[48];
         Horloge::texteDateRelative(d, sizeof(d), t->echeance);
         const bool retard = t->echeance < Horloge::aujourdhui();
-        snprintf(sous, sizeof(sous), "%s%s", retard ? "en retard · " : "", d);
+        snprintf(sous, sizeof(sous), "%s%s", retard ? TR("en retard · ") : "", d);
         Dessin::texte(F_PETITE, x, y + 76, sous, retard ? NOIR : GRIS_FONCE);
       }
     }
@@ -366,7 +367,7 @@ class AppPomodoro : public App {
       else Dessin::rect(x0 + i * (c + e), 476, c, c, 3, NOIR);
     }
     char t[64];
-    snprintf(t, sizeof(t), "%d pomodoro%s terminé%s", Minuteries::pomoCyclesFaits(),
+    snprintf(t, sizeof(t), TR("%d pomodoro%s terminé%s"), Minuteries::pomoCyclesFaits(),
              Minuteries::pomoCyclesFaits() > 1 ? "s" : "", Minuteries::pomoCyclesFaits() > 1 ? "s" : "");
     Dessin::texteCentre(F_PETITE, ECRAN_L / 2, 540, t, GRIS_FONCE);
     if (enCours) {
@@ -384,7 +385,7 @@ class AppPomodoro : public App {
       UI::bouton(boite(MARGE + lb + 16, 630, lb, 84), "Passer", C_PASSER);
       UI::bouton(boite(MARGE, 730, ECRAN_L - 2 * MARGE, 76), "Arrêter la série", C_ARRETER, 0, STYLE_DISCRET);
     }
-    snprintf(t, sizeof(t), "%u min · pause %u · grande pause %u · %u cycles",
+    snprintf(t, sizeof(t), TR("%u min · pause %u · grande pause %u · %u cycles"),
              (unsigned)Param.pomoTravail, (unsigned)Param.pomoPause, (unsigned)Param.pomoLongue, (unsigned)Param.pomoCycles);
     UI::separateur(842);
     Dessin::texteTronque(F_PETITE, MARGE, 890, ECRAN_L - 2 * MARGE - 30, t, GRIS_FONCE);

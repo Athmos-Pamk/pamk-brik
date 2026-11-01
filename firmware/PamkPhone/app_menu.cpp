@@ -9,6 +9,7 @@
 #include "minuteries.h"
 #include "meteo.h"
 #include "reseau.h"
+#include "langue.h"
 
 namespace {
 
@@ -135,8 +136,8 @@ class AppMenu : public App {
     switch (app) {
       case APP_TACHES: {
         const int k = Stockage::nbTachesAFaire();
-        if (k == 0) snprintf(b, n, "tout est fait");
-        else snprintf(b, n, "%d à faire", k);
+        if (k == 0) snprintf(b, n, TR("tout est fait"));
+        else snprintf(b, n, TR("%d à faire"), k);
         break;
       }
       case APP_NOTES: {
@@ -148,11 +149,11 @@ class AppMenu : public App {
         if (Minuteries::pomoPhase() != POMO_ARRET) {
           char r[16];
           Minuteries::texteRestant(r, sizeof(r), Minuteries::pomoRestantS());
-          snprintf(b, n, "en cours · %s", r);
+          snprintf(b, n, TR("en cours · %s"), r);
         } else if (Minuteries::minActif()) {
-          snprintf(b, n, "minuteur en cours");
+          snprintf(b, n, TR("minuteur en cours"));
         } else {
-          snprintf(b, n, "et Pomodoro");
+          snprintf(b, n, TR("et Pomodoro"));
         }
         break;
       case APP_CALENDRIER:
@@ -162,29 +163,29 @@ class AppMenu : public App {
         if (Meteo::disponible()) {
           snprintf(b, n, "%d°C · %s", Meteo::temperature(), Meteo::texteCondition(Meteo::codeWmo()));
         } else {
-          snprintf(b, n, "locale (Wi-Fi)");
+          snprintf(b, n, TR("locale (Wi-Fi)"));
         }
         break;
       case APP_REGLAGES:
-        snprintf(b, n, "Wi-Fi, heure, écran");
+        snprintf(b, n, TR("Wi-Fi, heure, écran"));
         break;
       case APP_BILAN:
-        snprintf(b, n, "ta semaine");
+        snprintf(b, n, TR("ta semaine"));
         break;
       case APP_RECHERCHE:
-        snprintf(b, n, "tâches et notes");
+        snprintf(b, n, TR("tâches et notes"));
         break;
       case APP_ACCES:
-        snprintf(b, n, "page web & OTA");
+        snprintf(b, n, TR("page web & OTA"));
         break;
       case APP_HABITUDES:
-        snprintf(b, n, "rituels du jour");
+        snprintf(b, n, TR("rituels du jour"));
         break;
       case APP_ZEN:
-        snprintf(b, n, "cohérence cardiaque");
+        snprintf(b, n, TR("cohérence cardiaque"));
         break;
       case APP_CONVERTISSEUR:
-        snprintf(b, n, "unités & mesures");
+        snprintf(b, n, TR("unités & mesures"));
         break;
       default:
         break;

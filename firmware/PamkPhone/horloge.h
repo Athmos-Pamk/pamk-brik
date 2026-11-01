@@ -41,6 +41,8 @@ const char* nomJour(int lundi0);        // "lundi"
 const char* nomJourCourt(int lundi0);   // "lun."
 const char* nomMois(int mois);          // 1..12 -> "janvier"
 const char* nomMoisCourt(int mois);     // "janv."
+const char* initialeJour(int lundi0);   // "L" (« M » en anglais) : en-têtes de semaine
+// (01/11/2026) noms et dates suivent la langue de l'interface (langue.h)
 void texteHeure(char* b, size_t n, const struct tm& t);              // "14:32"
 void texteDateLongue(char* b, size_t n, int date, bool annee);     // "mardi 13 octobre (2026)"
 void texteDateCourte(char* b, size_t n, int date);                  // "mar. 13 oct."

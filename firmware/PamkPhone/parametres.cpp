@@ -34,6 +34,7 @@ void parametresParDefaut() {
   Param.assistantFait = false;
   Param.nePasDeranger = false;
   copier(Param.icalUrl, sizeof(Param.icalUrl), "");
+  Param.langue = 0;           // français
 }
 
 // Version des réglages enregistrés. 2 (27/10/2026) : orientation par défaut retournée,
@@ -116,11 +117,13 @@ void chargerParametres() {
   Param.nePasDeranger = p.getBool("npd", Param.nePasDeranger);
   s = p.getString("ical", Param.icalUrl);
   copier(Param.icalUrl, sizeof(Param.icalUrl), s.c_str());
+  Param.langue = p.getUChar("langue", Param.langue);
   p.end();
   // Garde-fous
   if (Param.modeMaj > 1) Param.modeMaj = 0;
   if (Param.nettoyageAuto > 3) Param.nettoyageAuto = 3;
   if (Param.tailleTexte > 1) Param.tailleTexte = 0;
+  if (Param.langue > 1) Param.langue = 0;
   if (Param.wifiMode > 2) Param.wifiMode = 1;
   if (Param.pomoTravail < 1) Param.pomoTravail = 25;
   if (Param.pomoPause < 1) Param.pomoPause = 5;
@@ -161,6 +164,7 @@ void sauverParametres() {
   p.putBool("assistant", Param.assistantFait);
   p.putBool("npd", Param.nePasDeranger);
   p.putString("ical", Param.icalUrl);
+  p.putUChar("langue", Param.langue);
   p.end();
 }
 

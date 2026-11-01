@@ -139,6 +139,8 @@ sur **RST**, relâcher RST, puis relâcher BOOT ; téléverser ; appuyer sur RST
    Sans Wi-Fi : Réglages → Heure et date → réglage manuel (écrit aussi l'horloge en UTC).
    Par la console : `wifi connecter MonReseau MonMotDePasse` (SSID sans espace).
 4. Réglages → Prénom, pour « Bonjour Thomas ».
+5. **Langue** : bouton « English » sur le premier écran de l'assistant, ou Réglages → Langue
+   (Français / English, appliqué tout de suite).
 
 ## 5. Utilisation
 
@@ -235,6 +237,14 @@ branché en USB, et la veille automatique aussi (réglable : Réglages → Veill
    120 mV) et ne retombe plus d'un coup au débranchement. Chargeur mural deviné au saut de
    tension (icône de charge). Réglages dans `energie.cpp` (`CHARGE_CHUTE_MV`, `MONTEE_PM_H`…).
 5. **Veille** : pas de veille automatique pendant le téléchargement de l'agenda.
+6. **Français / anglais** : Réglages → Langue (ou « English » au premier écran de
+   l'assistant). Le français reste le texte du code ; `langue.cpp` est une table
+   français → anglais triée, et `Dessin::texte…` traduit tout seul les chaînes entières (les
+   `snprintf` passent par `TR("…")`). Jours, mois et dates relatives en anglais
+   (« Mon 27 Oct », « today »), clavier QWERTY en anglais. Restent en français : la page web
+   de l'accès depuis l'ordinateur, la console série et les textes que tu écris. À vérifier
+   surtout : les textes trop longs en anglais (boutons, titres) et un texte resté en français
+   (= absent de la table ou mal placé dans l'ordre).
 
 ### Version 0.2 (28/10/2026)
 
@@ -310,10 +320,11 @@ firmware/
     dessin.*  ui.*           primitives, texte UTF-8, visage de Pamk, boutons, listes…
     tactile.*  boutons.*     GT911 et gestes ; 3 boutons (anti-rebond, court/long/duo)
     energie.*                batterie, veille légère, sommeil profond
-    horloge.*                RTC PCF8563, NTP, fuseau, dates en français
+    horloge.*                RTC PCF8563, NTP, fuseau, dates en français / anglais
     reseau.*                 Wi-Fi à la demande, réseaux connus (NVS)
     stockage.*               tâches et notes en JSON sur FFat (écriture atomique)
     parametres.*             réglages (NVS)
+    langue.*                 français / anglais : table de traduction triée, tr() et TR()
     minuteries.*             Pomodoro et minuteur (mémoire RTC : survivent à la veille)
     ecrans.*                 démarrage, veille, éteint, batterie vide
     console.*                console série

@@ -8,6 +8,7 @@
 #include "stockage.h"
 #include "agenda.h"
 #include "reseau.h"
+#include "langue.h"
 
 namespace {
 
@@ -93,12 +94,12 @@ class AppCalendrier : public App {
     m_attente = false;
     char t[96];
     if (Agenda::numeroEssai() == m_essai) {   // pas de tentative : le Wi-Fi n'a pas abouti
-      snprintf(t, sizeof(t), "Agenda : %s", Reseau::texteEtat());
+      snprintf(t, sizeof(t), TR("Agenda : %s"), Reseau::texteEtat());
     } else if (Agenda::derniereErreur()[0]) {
-      snprintf(t, sizeof(t), "Agenda : %s", Agenda::derniereErreur());
+      snprintf(t, sizeof(t), TR("Agenda : %s"), Agenda::derniereErreur());
     } else {
       const int n = Agenda::nbEvenements();
-      snprintf(t, sizeof(t), "Agenda à jour : %d événement%s", n, n > 1 ? "s" : "");
+      snprintf(t, sizeof(t), TR("Agenda à jour : %d événement%s"), n, n > 1 ? "s" : "");
     }
     Systeme::notifier(t);
   }
@@ -154,9 +155,8 @@ class AppCalendrier : public App {
     titre[0] = (char)toupper((unsigned char)titre[0]);
     Dessin::texteCentre(F_GRAS, ECRAN_L / 2, Dessin::baseCentree(F_GRAS, g.y, g.h), titre, NOIR);
     // Initiales des jours
-    static const char* const INITIALES[7] = {"L", "M", "M", "J", "V", "S", "D"};
     for (int i = 0; i < 7; i++) {
-      Dessin::texteCentre(F_PIXEL, GRILLE_X + i * CASE_L + CASE_L / 2, JOURS_Y, INITIALES[i], i >= 5 ? GRIS : GRIS_FONCE);
+      Dessin::texteCentre(F_PIXEL, GRILLE_X + i * CASE_L + CASE_L / 2, JOURS_Y, Horloge::initialeJour(i), i >= 5 ? GRIS : GRIS_FONCE);
     }
     // Grille
     uint32_t aFaire = 0, faites = 0;
@@ -197,8 +197,8 @@ class AppCalendrier : public App {
     int total = 0;
     for (int j = 1; j <= 31; j++) if (aFaire & (1UL << j)) total++;
     char resume[64];
-    if (total == 0) snprintf(resume, sizeof(resume), "Aucune tâche à faire ce mois-ci");
-    else snprintf(resume, sizeof(resume), "%d jour%s avec des tâches à faire", total, total > 1 ? "s" : "");
+    if (total == 0) snprintf(resume, sizeof(resume), TR("Aucune tâche à faire ce mois-ci"));
+    else snprintf(resume, sizeof(resume), TR("%d jour%s avec des tâches à faire"), total, total > 1 ? "s" : "");
     if (!Agenda::configure()) {
       Dessin::texteCentre(F_PETITE, ECRAN_L / 2, PIED_Y + 50, resume, GRIS_FONCE);
       return;

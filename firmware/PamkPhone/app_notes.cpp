@@ -5,6 +5,7 @@
 #include "ui.h"
 #include "horloge.h"
 #include "stockage.h"
+#include "langue.h"
 
 namespace {
 
@@ -110,7 +111,7 @@ class AppNotes : public App {
       const Entree& e = m_e[i];
       if (e.note < 0) {
         char t[40];
-        if (e.date == -1) snprintf(t, sizeof(t), "ÉPINGLÉES");
+        if (e.date == -1) snprintf(t, sizeof(t), TR("ÉPINGLÉES"));
         else texteJour(e.date, t, sizeof(t));
         UI::etiquette(MARGE, y + 36, t);
         y += H_GROUPE;

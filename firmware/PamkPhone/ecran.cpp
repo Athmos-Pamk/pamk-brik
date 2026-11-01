@@ -1,5 +1,6 @@
 #include "ecran.h"
 #include "epd_driver.h"
+#include "langue.h"
 #include <esp_heap_caps.h>
 #include <string.h>
 #include <limits.h>
@@ -681,8 +682,8 @@ void rafraichir(bool complet) {
     const int passes = mettreAJourGroupes(groupes, nb);
     if (s_partiels < 0xFFFF) s_partiels++;
     ajouterUsure(changes, s_mode == MAJ_DOUX ? USURE_POIDS_DOUX : USURE_POIDS_PIXELS);
-    snprintf(s_texteMode, sizeof(s_texteMode), "%s, %d groupe%s, %d passe%s",
-             s_mode == MAJ_DOUX ? "doux" : "pixels", nb, nb > 1 ? "s" : "", passes, passes > 1 ? "s" : "");
+    snprintf(s_texteMode, sizeof(s_texteMode), TR("%s, %d groupe%s, %d passe%s"),
+             s_mode == MAJ_DOUX ? TR("doux") : "pixels", nb, nb > 1 ? "s" : "", passes, passes > 1 ? "s" : "");
   }
   if (s_rappel) s_rappel();
   epd_poweroff_all();   // coupe aussi PWR_EN (LED bleue, pont batterie)

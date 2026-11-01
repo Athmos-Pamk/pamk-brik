@@ -2,6 +2,7 @@
 #include "ecran.h"
 #include "tactile.h"
 #include "horloge.h"
+#include "langue.h"
 #include <WiFi.h>
 #include <Wire.h>
 #include <driver/gpio.h>
@@ -240,15 +241,15 @@ bool texteAutonomie(char* sortie, size_t taille) {
   if (reste < 0) reste = 0;
   const double heures = reste / -pente;
   if (heures < 1.0) {
-    snprintf(sortie, taille, "moins d'une heure");
+    snprintf(sortie, taille, TR("moins d'une heure"));
   } else if (heures < 36.0) {
-    snprintf(sortie, taille, "environ %d h", (int)(heures + 0.5));
+    snprintf(sortie, taille, TR("environ %d h"), (int)(heures + 0.5));
   } else if (heures < 14.0 * 24.0) {
-    snprintf(sortie, taille, "environ %d jours", (int)(heures / 24.0 + 0.5));
+    snprintf(sortie, taille, TR("environ %d jours"), (int)(heures / 24.0 + 0.5));
   } else if (heures < 60.0 * 24.0) {
-    snprintf(sortie, taille, "environ %d semaines", (int)(heures / (7.0 * 24.0) + 0.5));
+    snprintf(sortie, taille, TR("environ %d semaines"), (int)(heures / (7.0 * 24.0) + 0.5));
   } else {
-    snprintf(sortie, taille, "plus de 2 mois");
+    snprintf(sortie, taille, TR("plus de 2 mois"));
   }
   return true;
 }
@@ -308,10 +309,10 @@ esp_sleep_wakeup_cause_t causeReveil() { return s_cause; }
 
 const char* texteCauseReveil() {
   switch (s_cause) {
-    case ESP_SLEEP_WAKEUP_EXT1:  return "bouton marche";
-    case ESP_SLEEP_WAKEUP_TIMER: return "minuterie";
-    case ESP_SLEEP_WAKEUP_UNDEFINED: return "mise sous tension / reset";
-    default: return "autre";
+    case ESP_SLEEP_WAKEUP_EXT1:  return tr("bouton marche");
+    case ESP_SLEEP_WAKEUP_TIMER: return tr("minuterie");
+    case ESP_SLEEP_WAKEUP_UNDEFINED: return tr("mise sous tension / reset");
+    default: return tr("autre");
   }
 }
 

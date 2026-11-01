@@ -6,6 +6,7 @@
 #include "horloge.h"
 #include "parametres.h"
 #include "stockage.h"
+#include "langue.h"
 
 namespace {
 
@@ -42,19 +43,19 @@ class AppAlerte : public App {
         struct tm t;
         Horloge::localeDe(Horloge::maintenant() + (uint32_t)Minuteries::pomoRestantS(), t);
         Horloge::texteHeure(fin, sizeof(fin), t);
-        snprintf(detail, sizeof(detail), "Pomodoro %d terminé. %s jusqu'à %s.", Minuteries::pomoCyclesFaits(),
+        snprintf(detail, sizeof(detail), TR("Pomodoro %d terminé. %s jusqu'à %s."), Minuteries::pomoCyclesFaits(),
                  Minuteries::nomPhase(Minuteries::pomoPhase()), fin);
         break;
       }
       case ALERTE_FIN_PAUSE:
         titre = "Au travail ?";
-        snprintf(detail, sizeof(detail), "La pause est finie. Prêt pour %u min ?", (unsigned)Param.pomoTravail);
+        snprintf(detail, sizeof(detail), TR("La pause est finie. Prêt pour %u min ?"), (unsigned)Param.pomoTravail);
         break;
       case ALERTE_FIN_MINUTEUR: {
         titre = "Minuteur fini";
         const int m = Minuteries::minDureeS() / 60, s = Minuteries::minDureeS() % 60;
-        if (s) snprintf(detail, sizeof(detail), "%d min %02d s écoulées.", m, s);
-        else snprintf(detail, sizeof(detail), "%d min écoulée%s.", m, m > 1 ? "s" : "");
+        if (s) snprintf(detail, sizeof(detail), TR("%d min %02d s écoulées."), m, s);
+        else snprintf(detail, sizeof(detail), TR("%d min écoulée%s."), m, m > 1 ? "s" : "");
         break;
       }
       default:
@@ -62,10 +63,11 @@ class AppAlerte : public App {
     }
     Dessin::texteCentre(F_TITRE, ECRAN_L / 2, 470, titre, BLANC);
     LigneTexte l[3];
-    const int n = Dessin::couperLignes(F_TEXTE, detail, ECRAN_L - 2 * MARGE - 40, l, 3);
+    const char* det = tr(detail);   // traduit avant la coupe en lignes (langue.h)
+    const int n = Dessin::couperLignes(F_TEXTE, det, ECRAN_L - 2 * MARGE - 40, l, 3);
     for (int i = 0; i < n; i++) {
-      const int largeur = Dessin::largeurN(F_TEXTE, detail + l[i].debut, l[i].fin - l[i].debut);
-      Dessin::texteN(F_TEXTE, (ECRAN_L - largeur) / 2, 540 + i * 40, detail + l[i].debut, l[i].fin - l[i].debut, BLANC);
+      const int largeur = Dessin::largeurN(F_TEXTE, det + l[i].debut, l[i].fin - l[i].debut);
+      Dessin::texteN(F_TEXTE, (ECRAN_L - largeur) / 2, 540 + i * 40, det + l[i].debut, l[i].fin - l[i].debut, BLANC);
     }
     if (m_alerte == ALERTE_FIN_PAUSE) {
       boutonInverse(boite(MARGE, 700, ECRAN_L - 2 * MARGE, 84), "Démarrer un pomodoro", C_DEMARRER, true);
@@ -151,18 +153,18 @@ class AppRappel : public App {
       const int auj = Horloge::aujourdhui();
       if (t->echeance && t->echeance != auj) {
         Horloge::texteDateRelative(quand, sizeof(quand), t->echeance);
-        snprintf(detail, sizeof(detail), "Prévu %s à %d:%02d", quand, t->heure / 60, t->heure % 60);
+        snprintf(detail, sizeof(detail), TR("Prévu %s à %d:%02d"), quand, t->heure / 60, t->heure % 60);
       } else {
-        snprintf(detail, sizeof(detail), "Prévu à %d:%02d", t->heure / 60, t->heure % 60);
+        snprintf(detail, sizeof(detail), TR("Prévu à %d:%02d"), t->heure / 60, t->heure % 60);
       }
     } else {
-      snprintf(detail, sizeof(detail), "C'est l'heure !");
+      snprintf(detail, sizeof(detail), TR("C'est l'heure !"));
     }
     Dessin::texteCentre(F_TEXTE, ECRAN_L / 2, y, detail, GRIS_CLAIR);
     boutonInverse(boite(MARGE, 600, ECRAN_L - 2 * MARGE, 84), "Fait", R_FAIT, true);
     if (!t->faite) {
       char r[24];
-      snprintf(r, sizeof(r), "Dans %d min", REPORT_MIN);
+      snprintf(r, sizeof(r), TR("Dans %d min"), REPORT_MIN);
       boutonInverse(boite(MARGE, 700, ECRAN_L - 2 * MARGE, 84), r, R_REPORTER, false);
     }
     boutonInverse(boite(MARGE, 800, ECRAN_L - 2 * MARGE, 84), "Fermer", R_FERMER, false);
@@ -178,11 +180,11 @@ class AppRappel : public App {
       if (repetee) {   // elle reste à faire : son échéance a avancé
         char d[24];
         Horloge::texteDateRelative(d, sizeof(d), t->echeance);
-        snprintf(message, sizeof(message), "Revient %s", d);
+        snprintf(message, sizeof(message), TR("Revient %s"), d);
       }
     } else if (t && code == R_REPORTER) {
-      if (Stockage::reporterRappel(m_id, REPORT_MIN)) snprintf(message, sizeof(message), "Rappel dans %d min", REPORT_MIN);
-      else snprintf(message, sizeof(message), "Rappel impossible à reporter");
+      if (Stockage::reporterRappel(m_id, REPORT_MIN)) snprintf(message, sizeof(message), TR("Rappel dans %d min"), REPORT_MIN);
+      else snprintf(message, sizeof(message), TR("Rappel impossible à reporter"));
     }
     Systeme::retour();   // ferme le rappel dans tous les cas
     if (message[0]) Systeme::notifier(message);

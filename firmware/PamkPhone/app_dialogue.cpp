@@ -1,5 +1,6 @@
 // Fenêtre de confirmation (dessinée par-dessus l'appli précédente).
 #include "app.h"
+#include "langue.h"
 #include "systeme.h"
 #include "ui.h"
 
@@ -15,9 +16,10 @@ class AppDialogue : public App {
   bool reprendreApresVeille() const override { return false; }
 
   void configurer(const char* titre, const char* message, const char* oui, RappelConfirmation rappel, void* ctx) {
-    copier(m_titre, sizeof(m_titre), titre);
-    copier(m_message, sizeof(m_message), message);
-    copier(m_oui, sizeof(m_oui), oui ? oui : "Oui");
+    // traduits ici (langue.h) : le message est coupé en lignes, morceaux non traduisibles ensuite
+    copier(m_titre, sizeof(m_titre), tr(titre));
+    copier(m_message, sizeof(m_message), tr(message));
+    copier(m_oui, sizeof(m_oui), tr(oui ? oui : "Oui"));
     m_rappel = rappel;
     m_ctx = ctx;
   }

@@ -9,11 +9,12 @@
 #include "horloge.h"
 #include "reseau.h"
 #include "parametres.h"
+#include "langue.h"
 
 namespace {
 
 enum Etape : int8_t { E_BIENVENUE, E_PRENOM, E_WIFI, E_HEURE, E_GESTES, E_PRET, E_NB };
-enum Code { C_SUIVANTE, C_TERMINER, C_PRENOM, C_WIFI, C_HEURE, C_REESSAYER };
+enum Code { C_SUIVANTE, C_TERMINER, C_PRENOM, C_WIFI, C_HEURE, C_REESSAYER, C_LANGUE };
 
 const int AVANCEMENT_Y = 70;                    // petits carrés : une case par étape
 const int TITRE_Y = 262;                        // ligne de base du titre sous le petit visage
@@ -35,6 +36,7 @@ const Aide GESTES[3] = {
 // Paragraphe coupé aux espaces, centré dans [x, x + largeurMax] ou aligné à gauche.
 // Retourne la ligne de base suivante.
 int paragraphe(const GFXfont* p, int x, int y, int largeurMax, const char* s, uint8_t c, bool centre) {
+  s = tr(s);   // traduit avant la coupe en lignes (langue.h)
   LigneTexte lignes[6];
   const int n = Dessin::couperLignes(p, s, largeurMax, lignes, 6);
   const int pas = Dessin::hauteurLigne(p) + 4;   // 38 pour F_TEXTE
@@ -102,6 +104,11 @@ class AppAssistant : public App {
         break;
       case C_REESSAYER:
         Reseau::synchroniserHeure();
+        Systeme::redessiner();
+        break;
+      case C_LANGUE:   // 01/11/2026 : français / anglais dès le premier écran
+        Param.langue = anglais() ? LANGUE_FR : LANGUE_EN;
+        sauverParametres();
         Systeme::redessiner();
         break;
       default: break;
@@ -174,6 +181,8 @@ class AppAssistant : public App {
     paragraphe(F_TEXTE, MARGE, 470, TEXTE_L,
                "Je suis Pamk, ton téléphone tout simple. On me prépare ensemble ? Ça prend deux minutes.",
                GRIS_FONCE, true);
+    // L'autre langue, écrite dans cette langue : « English » en français, « Français » en anglais.
+    UI::bouton(boite(ECRAN_L / 2 - 110, 616, 220, 60), anglais() ? "Français" : "English", C_LANGUE);
     Dessin::texteCentre(F_PETITE, ECRAN_L / 2, 704, "Tout se règle aussi plus tard dans Réglages.", GRIS_FONCE);
     boutons("Commencer", C_SUIVANTE, "Passer", C_TERMINER);   // ici, « Passer » saute tout
   }
@@ -199,7 +208,7 @@ class AppAssistant : public App {
     if (n > 0) {
       char s[33], l[64];
       Reseau::ssidConnu(n - 1, s, sizeof(s));   // le dernier enregistré
-      snprintf(l, sizeof(l), "Réseau enregistré : %s", s);
+      snprintf(l, sizeof(l), TR("Réseau enregistré : %s"), s);
       ligneCentree(F_GRAS, 490, l, NOIR);
     }
     const EtatReseau er = Reseau::etat();
@@ -284,9 +293,9 @@ class AppAssistant : public App {
     Dessin::texteCentre(F_TITRE, ECRAN_L / 2, 404, "C'est prêt !", NOIR);
     char l[128];
     if (Param.prenom[0]) {
-      snprintf(l, sizeof(l), "À toi de jouer, %s ! Tout se règle dans Applications, puis Réglages.", Param.prenom);
+      snprintf(l, sizeof(l), TR("À toi de jouer, %s ! Tout se règle dans Applications, puis Réglages."), Param.prenom);
     } else {
-      snprintf(l, sizeof(l), "À toi de jouer ! Tout se règle dans Applications, puis Réglages.");
+      snprintf(l, sizeof(l), TR("À toi de jouer ! Tout se règle dans Applications, puis Réglages."));
     }
     paragraphe(F_TEXTE, MARGE, 470, TEXTE_L, l, GRIS_FONCE, true);
     boutons("C'est parti", C_TERMINER, nullptr, 0);

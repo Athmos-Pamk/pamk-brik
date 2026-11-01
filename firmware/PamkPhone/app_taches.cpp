@@ -5,6 +5,7 @@
 #include "ui.h"
 #include "horloge.h"
 #include "stockage.h"
+#include "langue.h"
 
 namespace {
 
@@ -28,7 +29,7 @@ void basculer(const Tache* t) {
   if (repetee) {
     char d[24], m[48];
     Horloge::texteDateRelative(d, sizeof(d), t->echeance);   // t pointe toujours sur la tâche
-    snprintf(m, sizeof(m), "Revient %s", d);
+    snprintf(m, sizeof(m), TR("Revient %s"), d);
     Systeme::notifier(m);
   }
 }
@@ -107,7 +108,7 @@ void ligneTache(int y, int index, int codeCocher, int codeOuvrir) {
     char d[24];
     Horloge::texteDateRelative(d, sizeof(d), t->echeance);
     retard = !t->faite && t->echeance < Horloge::aujourdhui();
-    snprintf(sous, sizeof(sous), "%s%s", retard ? "en retard · " : "", d);
+    snprintf(sous, sizeof(sous), "%s%s", retard ? TR("en retard · ") : "", d);
   }
   if (t->heure >= 0) {
     char h[8];
@@ -164,8 +165,8 @@ class AppTaches : public App {
 
     // Onglets
     char a[32], f[32];
-    snprintf(a, sizeof(a), "À faire (%d)", Stockage::nbTachesAFaire());
-    snprintf(f, sizeof(f), "Faites (%d)", Stockage::nbTachesFaites());
+    snprintf(a, sizeof(a), TR("À faire (%d)"), Stockage::nbTachesAFaire());
+    snprintf(f, sizeof(f), TR("Faites (%d)"), Stockage::nbTachesFaites());
     const int lo = (ECRAN_L - 2 * MARGE - 12) / 2;
     UI::bouton(boite(MARGE, ONGLETS_Y, lo, ONGLETS_H), a, L_ONGLET, 0,
                m_filtre == TACHES_A_FAIRE ? STYLE_PLEIN : STYLE_DISCRET);
@@ -176,7 +177,7 @@ class AppTaches : public App {
     if (rechActive) {
       const int yBandeau = ONGLETS_Y + ONGLETS_H + 6;
       char txtFiltre[64];
-      snprintf(txtFiltre, sizeof(txtFiltre), "Recherche : « %s »", m_recherche);
+      snprintf(txtFiltre, sizeof(txtFiltre), TR("Recherche : « %s »"), m_recherche);
       Dessin::texte(F_PETITE, MARGE, yBandeau + 22, txtFiltre, NOIR);
       const Boite bEff = boite(ECRAN_L - MARGE - 100, yBandeau + 2, 100, 32);
       Dessin::chanfrein(bEff.x, bEff.y, bEff.l, bEff.h, 6, TRAIT, GRIS_FONCE);
@@ -420,7 +421,7 @@ class AppTache : public App {
     // Répétition
     char rep[40];
     if (t->repetition == REP_SEMAINE && t->echeance) {
-      snprintf(rep, sizeof(rep), "chaque %s", Horloge::nomJour(Horloge::jourSemaine(t->echeance)));
+      snprintf(rep, sizeof(rep), TR("chaque %s"), Horloge::nomJour(Horloge::jourSemaine(t->echeance)));
     } else {
       Stockage::texteRepetition(t->repetition, rep, sizeof(rep));
     }
@@ -432,7 +433,6 @@ class AppTache : public App {
     y += hRep + 10;
 
     // 7 pastilles pour les jours de la semaine (Lundi à Dimanche)
-    static const char* const JOURS_BOULES[7] = {"L", "M", "M", "J", "V", "S", "D"};
     const int diam = 46;
     const int ecartJour = (ECRAN_L - 2 * MARGE - 7 * diam) / 6;
     for (int j = 0; j < 7; j++) {
@@ -440,10 +440,10 @@ class AppTache : public App {
       const bool actif = (t->joursSemaine & (1 << j)) != 0;
       if (actif) {
         Dessin::cerclePlein(jx + diam / 2, y + diam / 2, diam / 2, NOIR);
-        Dessin::texteCentre(F_GRAS, jx + diam / 2, y + 32, JOURS_BOULES[j], BLANC);
+        Dessin::texteCentre(F_GRAS, jx + diam / 2, y + 32, Horloge::initialeJour(j), BLANC);
       } else {
         Dessin::cercle(jx + diam / 2, y + diam / 2, diam / 2, 2, GRIS);
-        Dessin::texteCentre(F_GRAS, jx + diam / 2, y + 32, JOURS_BOULES[j], NOIR);
+        Dessin::texteCentre(F_GRAS, jx + diam / 2, y + 32, Horloge::initialeJour(j), NOIR);
       }
       UI::zone(boite(jx - 4, y - 4, diam + 8, diam + 8), D_JOUR_0 + j);
     }
@@ -458,7 +458,7 @@ class AppTache : public App {
       if (t->rappelReporte && m > Horloge::maintenant()) {
         struct tm hm;
         Horloge::localeDe(m, hm);
-        snprintf(lib, sizeof(lib), "Rappel (reporté à %d:%02d)", hm.tm_hour, hm.tm_min);
+        snprintf(lib, sizeof(lib), TR("Rappel (reporté à %d:%02d)"), hm.tm_hour, hm.tm_min);
       }
       UI::ligneInterrupteur(y, lib, t->rappel, D_RAPPEL);
     } else {
@@ -483,9 +483,9 @@ class AppTache : public App {
     char cr[40], md[40], ligne[96];
     dateHeure(t->cree, cr, sizeof(cr));
     dateHeure(t->maj, md, sizeof(md));
-    snprintf(ligne, sizeof(ligne), "Créée le %s", cr);
+    snprintf(ligne, sizeof(ligne), TR("Créée le %s"), cr);
     Dessin::texte(F_PETITE, MARGE, y + 16, ligne, GRIS_FONCE);
-    snprintf(ligne, sizeof(ligne), "Modifiée le %s", md);
+    snprintf(ligne, sizeof(ligne), TR("Modifiée le %s"), md);
     Dessin::texte(F_PETITE, MARGE, y + 36, ligne, GRIS_FONCE);
 
     // Bouton de suppression en bas sans chevauchement
@@ -665,7 +665,7 @@ class AppTache : public App {
     char d[24], h[8];
     Horloge::texteDateCourte(d, sizeof(d), Horloge::dateDe(t));
     Horloge::texteHeure(h, sizeof(h), t);
-    snprintf(b, n, "%s %d à %s", d, t.tm_year + 1900, h);
+    snprintf(b, n, TR("%s %d à %s"), d, t.tm_year + 1900, h);
   }
 
   static void rappelTitre(bool ok, const char* texte, void* ctx) {

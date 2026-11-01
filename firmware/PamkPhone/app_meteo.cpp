@@ -7,6 +7,7 @@
 #include "horloge.h"
 #include "reseau.h"
 #include "meteo.h"
+#include "langue.h"
 
 namespace {
 
@@ -103,7 +104,7 @@ class AppMeteo : public App {
 
     // Min / Max
     char mmTxt[48];
-    snprintf(mmTxt, sizeof(mmTxt), "Minimum %d°C · Maximum %d°C",
+    snprintf(mmTxt, sizeof(mmTxt), TR("Minimum %d°C · Maximum %d°C"),
              Meteo::tempMin(), Meteo::tempMax());
     Dessin::texteCentre(F_PETITE, ECRAN_L / 2, yCentre + 270, mmTxt, GRIS_FONCE);
 
@@ -119,9 +120,9 @@ class AppMeteo : public App {
     if (Meteo::donnees().majUtc > 0) {
       struct tm t;
       Horloge::localeDe(Meteo::donnees().majUtc, t);
-      snprintf(maj, sizeof(maj), "Mis à jour à %02d:%02d via Open-Meteo", t.tm_hour, t.tm_min);
+      snprintf(maj, sizeof(maj), TR("Mis à jour à %02d:%02d via Open-Meteo"), t.tm_hour, t.tm_min);
     } else {
-      snprintf(maj, sizeof(maj), "Fourni par Open-Meteo (sans clé)");
+      snprintf(maj, sizeof(maj), TR("Fourni par Open-Meteo (sans clé)"));
     }
     Dessin::texte(F_PETITE, bInfo.x + 20, bInfo.y + 80, maj, GRIS_FONCE);
 
@@ -169,7 +170,7 @@ class AppMeteo : public App {
       case M_SUPPRIMER_VILLE: {
         const char* nom = Meteo::lieu();
         char msg[64];
-        snprintf(msg, sizeof(msg), "Supprimer %s ?", nom);
+        snprintf(msg, sizeof(msg), TR("Supprimer %s ?"), nom);
         Systeme::ouvrir(appDialogue(msg, "Elle ne sera plus suivie.", "Supprimer", rappelSuppression, this));
         break;
       }
@@ -209,7 +210,7 @@ class AppMeteo : public App {
     if (Meteo::rechercherVille(texte, nomTrouve, sizeof(nomTrouve), lat, lon)) {
       if (Meteo::ajouterVille(nomTrouve, lat, lon)) {
         char msg[64];
-        snprintf(msg, sizeof(msg), "%s ajoutée !", nomTrouve);
+        snprintf(msg, sizeof(msg), TR("%s ajoutée !"), nomTrouve);
         Systeme::notifier(msg);
         if (Reseau::etat() == RESEAU_CONNECTE) {
           Meteo::synchroniser();

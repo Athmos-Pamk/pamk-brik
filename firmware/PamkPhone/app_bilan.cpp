@@ -8,6 +8,7 @@
 #include "ui.h"
 #include "horloge.h"
 #include "stats.h"
+#include "langue.h"
 
 namespace {
 
@@ -15,7 +16,6 @@ enum Code { C_POMODORO };
 
 const int NB_JOURS = 7;
 const int JOURS_GARDES = 35;          // fenêtre de stats.json : la série ne remonte pas plus loin
-const char* const INITIALES[7] = {"L", "M", "M", "J", "V", "S", "D"};
 
 // Histogramme
 const int HISTO_BAS = 630;            // pied des barres (axe)
@@ -91,15 +91,15 @@ void grandeDuree(int x, int yBase, int minutes) {
 void comparaison(char* b, size_t n, int cette, int avant) {
   char d[16];
   if (avant == 0) {
-    snprintf(b, n, "Beau départ, continue comme ça !");
+    snprintf(b, n, TR("Beau départ, continue comme ça !"));
   } else if (cette > avant) {
     texteDuree(d, sizeof(d), cette - avant);
-    snprintf(b, n, "%s de plus que la semaine d'avant", d);
+    snprintf(b, n, TR("%s de plus que la semaine d'avant"), d);
   } else if (cette == avant) {
-    snprintf(b, n, "Pile comme la semaine d'avant");
+    snprintf(b, n, TR("Pile comme la semaine d'avant"));
   } else {
     texteDuree(d, sizeof(d), avant);
-    snprintf(b, n, "Semaine d'avant : %s · chaque minute compte", d);
+    snprintf(b, n, TR("Semaine d'avant : %s · chaque minute compte"), d);
   }
 }
 
@@ -158,7 +158,7 @@ class AppBilan : public App {
         texteCourt(v, sizeof(v), j.minutes);
         Dessin::texteCentre(F_PETITE, cx, HISTO_BAS - h - 10, v, auj ? NOIR : GRIS_FONCE);
       }
-      const char* ini = INITIALES[Horloge::jourSemaine(j.date)];
+      const char* ini = Horloge::initialeJour(Horloge::jourSemaine(j.date));
       const int yb = Dessin::baseCentree(F_GRAS, HISTO_BAS + 16, 44);
       if (auj) {
         Dessin::chanfreinPlein(cx - 22, HISTO_BAS + 16, 44, 44, 7, NOIR);
@@ -179,15 +179,15 @@ class AppBilan : public App {
     // Petit mot du bas : garder la série, sinon le meilleur jour
     char m[80] = "";
     if (s > 0 && semaine[NB_JOURS - 1].pomodoros == 0) {
-      snprintf(m, sizeof(m), "Un pomodoro aujourd'hui pour garder ta série !");
+      snprintf(m, sizeof(m), TR("Un pomodoro aujourd'hui pour garder ta série !"));
     } else {
       int meilleur = 0;
       for (int i = 1; i < NB_JOURS; i++) if (semaine[i].minutes > semaine[meilleur].minutes) meilleur = i;
       if (semaine[meilleur].minutes > 0) {
         char d[16];
         texteDuree(d, sizeof(d), semaine[meilleur].minutes);
-        if (meilleur == NB_JOURS - 1) snprintf(m, sizeof(m), "Meilleur jour : aujourd'hui · %s", d);
-        else snprintf(m, sizeof(m), "Meilleur jour : %s · %s", Horloge::nomJour(Horloge::jourSemaine(semaine[meilleur].date)), d);
+        if (meilleur == NB_JOURS - 1) snprintf(m, sizeof(m), TR("Meilleur jour : aujourd'hui · %s"), d);
+        else snprintf(m, sizeof(m), TR("Meilleur jour : %s · %s"), Horloge::nomJour(Horloge::jourSemaine(semaine[meilleur].date)), d);
       }
     }
     if (m[0]) Dessin::texteCentre(F_PETITE, ECRAN_L / 2, TUILES_Y + TUILES_H + 52, m, GRIS_FONCE);

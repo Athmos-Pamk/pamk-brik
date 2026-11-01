@@ -4,6 +4,7 @@
 #include "app.h"
 #include "systeme.h"
 #include "ui.h"
+#include "langue.h"
 #include <math.h>
 
 namespace {
@@ -119,7 +120,7 @@ class AppConvertisseur : public App {
 
     char txtRatio[48];
     if (m_cat == CAT_TEMP) {
-      snprintf(txtRatio, sizeof(txtRatio), "Formule : °F = °C × 1,8 + 32");
+      snprintf(txtRatio, sizeof(txtRatio), TR("Formule : °F = °C × 1,8 + 32"));
     } else if (u.facteur > 0) {
       double r = m_inverse ? 1.0 / u.facteur : u.facteur;
       snprintf(txtRatio, sizeof(txtRatio), "1 %s = %.4g %s", uniteDepart, r, uniteArrivee);

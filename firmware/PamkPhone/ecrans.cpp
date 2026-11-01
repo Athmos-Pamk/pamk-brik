@@ -7,6 +7,7 @@
 #include "minuteries.h"
 #include "parametres.h"
 #include "agenda.h"
+#include "langue.h"
 
 namespace Ecrans {
 
@@ -69,7 +70,7 @@ static void dessinerVeille(const Memo& m) {
       Dessin::texteCentre(F_GRANDE, ECRAN_L / 2, y + 112, m.heure, NOIR);
     } else {
       char ligne[48];
-      snprintf(ligne, sizeof(ligne), "en veille depuis %s", m.heure);
+      snprintf(ligne, sizeof(ligne), TR("en veille depuis %s"), m.heure);
       Dessin::texteCentre(F_TEXTE, ECRAN_L / 2, y + 90, ligne, GRIS_FONCE);
     }
     Dessin::texteCentre(F_GRAS, ECRAN_L / 2, y + 160, m.date, NOIR);
@@ -159,8 +160,8 @@ void veille(bool profonde) {
   Horloge::texteHeure(m.heure, sizeof(m.heure), t);
   Horloge::texteDateLongue(m.date, sizeof(m.date), Horloge::dateDe(t), false);
   m.date[0] = (char)toupper((unsigned char)m.date[0]);
-  if (Energie::mesureValide()) snprintf(m.batterie, sizeof(m.batterie), "Batterie %d %%", Energie::pourcentage());
-  else snprintf(m.batterie, sizeof(m.batterie), "Batterie --");
+  if (Energie::mesureValide()) snprintf(m.batterie, sizeof(m.batterie), TR("Batterie %d %%"), Energie::pourcentage());
+  else snprintf(m.batterie, sizeof(m.batterie), TR("Batterie --"));
   const uint32_t fin = Minuteries::prochaineEcheance();
   if (fin) {
     struct tm tf;
@@ -168,9 +169,9 @@ void veille(bool profonde) {
     char h[8];
     Horloge::texteHeure(h, sizeof(h), tf);
     if (Minuteries::pomoPhase() != POMO_ARRET && !Minuteries::pomoSuspendu()) {
-      snprintf(m.minuterie, sizeof(m.minuterie), "%s jusqu'à %s", Minuteries::nomPhase(Minuteries::pomoPhase()), h);
+      snprintf(m.minuterie, sizeof(m.minuterie), TR("%s jusqu'à %s"), Minuteries::nomPhase(Minuteries::pomoPhase()), h);
     } else {
-      snprintf(m.minuterie, sizeof(m.minuterie), "Minuteur jusqu'à %s", h);
+      snprintf(m.minuterie, sizeof(m.minuterie), TR("Minuteur jusqu'à %s"), h);
     }
   }
   Evenement ev;

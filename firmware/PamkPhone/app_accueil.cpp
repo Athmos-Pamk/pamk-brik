@@ -10,6 +10,7 @@
 #include "agenda.h"
 #include "meteo.h"
 #include "stats.h"
+#include "langue.h"
 
 namespace {
 
@@ -82,15 +83,16 @@ class AppAccueil : public App {
     const char* bonjour = "Bonjour";
     if (t.tm_hour >= 18 || t.tm_hour < 5) bonjour = "Bonsoir";
     else if (t.tm_hour >= 12) bonjour = "Bon après-midi";
+    bonjour = tr(bonjour);
     if (Param.prenom[0]) snprintf(salut, sizeof(salut), "%s %s", bonjour, Param.prenom);
     else snprintf(salut, sizeof(salut), "%s !", bonjour);
 
     char resume[64];
     const int aFaire = Stockage::nbTachesAFaire();
     const int retard = Stockage::nbTachesEnRetard();
-    if (aFaire == 0) snprintf(resume, sizeof(resume), "Rien à faire pour l'instant");
-    else if (retard > 0) snprintf(resume, sizeof(resume), "%d à faire, dont %d en retard", aFaire, retard);
-    else snprintf(resume, sizeof(resume), "%d tâche%s à faire", aFaire, aFaire > 1 ? "s" : "");
+    if (aFaire == 0) snprintf(resume, sizeof(resume), TR("Rien à faire pour l'instant"));
+    else if (retard > 0) snprintf(resume, sizeof(resume), TR("%d à faire, dont %d en retard"), aFaire, retard);
+    else snprintf(resume, sizeof(resume), TR("%d tâche%s à faire"), aFaire, aFaire > 1 ? "s" : "");
 
     const int pPamk = 7;
     const int wPamk = 11 * pPamk;
@@ -120,7 +122,7 @@ class AppAccueil : public App {
       char r[16];
       Minuteries::texteRestant(r, sizeof(r), Minuteries::pomoRestantS());
       snprintf(ligne, sizeof(ligne), "%s · %s%s", Minuteries::nomPhase(ph), r,
-               Minuteries::pomoSuspendu() ? " (en pause)" : "");
+               Minuteries::pomoSuspendu() ? TR(" (en pause)") : "");
       Dessin::texte(F_GRAS, MARGE, Y_POMO + 50, ligne, NOIR);
       const int duree = maxi(1, Minuteries::pomoDureeS());
       const int fait = duree - Minuteries::pomoRestantS();
@@ -129,10 +131,10 @@ class AppAccueil : public App {
     } else if (Minuteries::minActif()) {
       char r[16];
       Minuteries::texteRestant(r, sizeof(r), Minuteries::minRestantS());
-      snprintf(ligne, sizeof(ligne), "Minuteur · %s", r);
+      snprintf(ligne, sizeof(ligne), TR("Minuteur · %s"), r);
       Dessin::texte(F_GRAS, MARGE, Y_POMO + 50, ligne, NOIR);
     } else {
-      snprintf(ligne, sizeof(ligne), "Prêt : %u min de concentration", (unsigned)Param.pomoTravail);
+      snprintf(ligne, sizeof(ligne), TR("Prêt : %u min de concentration"), (unsigned)Param.pomoTravail);
       Dessin::texte(F_TEXTE, MARGE, Y_POMO + 50, ligne, GRIS_FONCE);
       UI::bouton(boite(ECRAN_L - MARGE - 150, Y_POMO - 36, 150, 56), "Démarrer", C_POMO_DEMARRER);
     }
@@ -167,7 +169,7 @@ class AppAccueil : public App {
         if (repetee) {   // elle ne disparaît pas : son échéance a avancé
           char d[24], m[48];
           Horloge::texteDateRelative(d, sizeof(d), t->echeance);
-          snprintf(m, sizeof(m), "Revient %s", d);
+          snprintf(m, sizeof(m), TR("Revient %s"), d);
           Systeme::notifier(m);
         }
         Systeme::redessiner();
@@ -200,8 +202,8 @@ class AppAccueil : public App {
       struct tm t;
       Horloge::locale(t);
       const int mn = t.tm_hour * 60 + t.tm_min;
-      if (e.debut < 0) snprintf(b, n, "Aujourd'hui");
-      else if (mn >= e.debut && e.fin > e.debut && mn < e.fin) snprintf(b, n, "En cours");
+      if (e.debut < 0) snprintf(b, n, TR("Aujourd'hui"));
+      else if (mn >= e.debut && e.fin > e.debut && mn < e.fin) snprintf(b, n, TR("En cours"));
       else snprintf(b, n, "%s", hm);
       return;
     }

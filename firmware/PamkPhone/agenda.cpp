@@ -6,6 +6,7 @@
 #include "horloge.h"
 #include "parametres.h"
 #include "stockage.h"
+#include "langue.h"
 #include <FFat.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -923,11 +924,11 @@ bool telecharger(const char* url, Contexte& c) {
       char tls[80] = "";
       client.lastError(tls, sizeof(tls));
       JOURNAL("[agenda] connexion : %s %s", HTTPClient::errorToString(code).c_str(), tls);
-      snprintf(m, sizeof(m), "connexion impossible (%d)", code);
+      snprintf(m, sizeof(m), TR("connexion impossible (%d)"), code);
     } else if (code == 400 || code == 401 || code == 403 || code == 404) {
-      snprintf(m, sizeof(m), "adresse refusée (%d) : vérifie-la", code);
+      snprintf(m, sizeof(m), TR("adresse refusée (%d) : vérifie-la"), code);
     } else {
-      snprintf(m, sizeof(m), "le serveur répond %d", code);
+      snprintf(m, sizeof(m), TR("le serveur répond %d"), code);
     }
     http.end();
     return echec(m);
@@ -1055,7 +1056,7 @@ bool aSynchroniser() {
 }
 
 uint32_t derniereSynchro() { return s_synchro; }
-const char* derniereErreur() { return s_erreur; }
+const char* derniereErreur() { return tr(s_erreur); }   // glissée dans « Agenda : %s »
 uint16_t numeroEssai() { return s_essais; }
 int nbEvenements() { return s_nb; }
 

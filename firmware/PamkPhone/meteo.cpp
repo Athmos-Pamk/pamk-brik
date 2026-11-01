@@ -1,4 +1,5 @@
 #include "meteo.h"
+#include "langue.h"
 #include "dessin.h"
 #include "horloge.h"
 #include <WiFi.h>
@@ -332,7 +333,12 @@ static const char* const PIX_NEIGE[] = {
   "..#...#...#.",
 };
 
-const char* texteCondition(uint8_t code) {
+static const char* texteConditionFr(uint8_t code);
+
+// tr() : la condition est aussi glissée dans des phrases (« 11°C · Sunny »), voir langue.h
+const char* texteCondition(uint8_t code) { return tr(texteConditionFr(code)); }
+
+static const char* texteConditionFr(uint8_t code) {
   switch (code) {
     case 0: return "Ensoleillé";
     case 1: return "Peu nuageux";
