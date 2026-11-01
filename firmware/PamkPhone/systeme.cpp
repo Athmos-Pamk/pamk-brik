@@ -40,6 +40,12 @@ App* appParId(uint8_t id) {
     case APP_REGLAGES:     return appReglages();
     case APP_RECHERCHE:    return appRecherche();
     case APP_BILAN:        return appBilan();
+    case APP_ACCES:        return appAcces();
+    case APP_VOLET:        return appVolet();
+    case APP_METEO:        return appMeteo();
+    case APP_HABITUDES:    return appHabitudes();
+    case APP_ZEN:          return appZen();
+    case APP_CONVERTISSEUR:return appConvertisseur();
     default:               return nullptr;
   }
 }
@@ -66,6 +72,7 @@ static bool s_correction = false;         // gris à corriger après un affichag
 static uint32_t s_tRapide = 0;
 static bool s_appuiAffiche = false;       // une zone est inversée (retour au toucher)
 static const uint32_t CORRECTION_APRES_MS = 1500;   // après la dernière frappe
+static Alerte s_alerteManquee = ALERTE_AUCUNE;   // Ne pas déranger : fin arrivée pendant la veille
 
 // Gardés pendant le sommeil profond
 static RTC_DATA_ATTR uint8_t r_derniereApp = APP_ACCUEIL;
@@ -243,9 +250,9 @@ void mettreEnVeille() {
   Reseau::eteindre();
   Energie::mesurerMaintenant();
   Ecrans::veille();
-  // Pixel par pixel (aucun rectangle noir), sauf si l'option « image complète à la veille »
-  // est choisie (Réglages > Écran).
-  Ecran::rafraichir(Param.nettoyageAuto == 1);
+  // Sans image complète (aucun rectangle noir), sauf avec l'option « à la veille », ou « auto »
+  // quand l'écran a assez servi (Réglages > Écran) : on ne regarde plus, le flash ne gêne pas.
+  Ecran::rafraichir(Param.nettoyageAuto == 1 || Ecran::nettoyageConseille());
   if (!BOUTONS_PRESENTS) {
     veilleAuToucher();   // revient au toucher, sur l'appli ouverte
     return;
@@ -260,7 +267,7 @@ void eteindre() {
   Minuteries::minArreter();
   Reseau::eteindre();
   Ecrans::eteint();
-  Ecran::rafraichir(Param.nettoyageAuto == 1);
+  Ecran::rafraichir(Param.nettoyageAuto == 1 || Ecran::nettoyageConseille());
   Energie::sommeilProfond(0);
 }
 
@@ -293,7 +300,22 @@ static void rafraichirHeureVeille() {
 // ---------------------------------------------------------------------------
 //  Événements
 // ---------------------------------------------------------------------------
+// Ne pas déranger : la fin d'un Pomodoro ou du minuteur ne prend pas tout l'écran, un bandeau
+// la signale (les phases continuent quand même).
+static const char* texteAlerte(Alerte al) {
+  switch (al) {
+    case ALERTE_FIN_TRAVAIL:  return "Pomodoro : travail terminé";
+    case ALERTE_FIN_PAUSE:    return "Pomodoro : fin de la pause";
+    case ALERTE_FIN_MINUTEUR: return "Minuteur terminé";
+    default:                  return "";
+  }
+}
+
 static void ouvrirAlerte(Alerte al) {
+  if (Param.nePasDeranger) {
+    notifier(texteAlerte(al));
+    return;
+  }
   Energie::activite();
   App* a = courante();
   if (a && a->id() == APP_ALERTE) remplacer(appAlerte(al));
@@ -301,6 +323,7 @@ static void ouvrirAlerte(Alerte al) {
 }
 
 static void ouvrirRappel(const char* id) {
+  if (Param.nePasDeranger) return;
   Energie::activite();
   App* a = courante();
   if (a && a->id() == APP_ALERTE) remplacer(appAlerteRappel(id));
@@ -311,6 +334,7 @@ static void ouvrirRappel(const char* id) {
 // Une alerte (fin de Pomodoro, autre rappel) déjà à l'écran passe d'abord : le rappel attend
 // qu'elle soit fermée, il n'est marqué « vu » qu'une fois affiché.
 static bool verifierRappels() {
+  if (Param.nePasDeranger) return false;
   if (!Horloge::valide()) return false;
   App* a = courante();
   if (a && a->id() == APP_ALERTE) return false;
@@ -339,7 +363,7 @@ static void veilleAuToucher() {
       Energie::sommeilProfond(secondesAvantReveil());   // ne revient pas
     }
     if (Energie::usbOrdinateur()) delay(VEILLE_TACTILE_SCRUTATION_MS);   // la veille légère couperait l'USB
-    else Energie::veilleLegere(VEILLE_TACTILE_SCRUTATION_MS);
+    else Energie::veilleLegere(5000);   // réveil immédiat par contact tactile (GPIO47) ou max 5 s
     if (Tactile::reveilParContact()) break;
     if (Boutons::marcheAppuye()) {   // bouton S4 de la carte
       Boutons::demarrer();           // il est encore enfoncé : on ignorera son relâchement
@@ -347,10 +371,13 @@ static void veilleAuToucher() {
     }
     const Alerte al = Minuteries::verifier();
     if (al != ALERTE_AUCUNE) {
-      ouvrirAlerte(al);
-      break;
+      if (!Param.nePasDeranger) {
+        ouvrirAlerte(al);
+        break;
+      }
+      s_alerteManquee = al;   // Ne pas déranger : bandeau au réveil, sans réveiller
     }
-    if (verifierRappels()) break;
+    if (!Param.nePasDeranger && verifierRappels()) break;
     if (pasS && Horloge::valide() && !estLaNuit() && Horloge::maintenant() / pasS != dernierPas) {
       dernierPas = Horloge::maintenant() / pasS;
       Energie::mesurerMaintenant();
@@ -358,6 +385,10 @@ static void veilleAuToucher() {
       Ecrans::veille();
       Ecran::rafraichir();
     }
+  }
+  if (s_alerteManquee != ALERTE_AUCUNE) {
+    notifier(texteAlerte(s_alerteManquee));
+    s_alerteManquee = ALERTE_AUCUNE;
   }
   Energie::activite();
   redessiner();
@@ -422,9 +453,29 @@ static void traiterGeste(const Geste& g) {
       }
       break;
     case GESTE_GLISSER:
-      // Glisser depuis le bord gauche vers la droite = retour
-      if (g.x < 60 && g.dx > 120 && abs(g.dx) > abs(g.dy)) a->retour();
-      else a->glisser(g.dx, g.dy);
+      // Si on est dans le volet rapide : glisser vers le haut ferme le volet
+      if (a && a->id() == APP_VOLET) {
+        if (g.dy < -35 && abs(g.dy) > abs(g.dx)) {
+          retour();
+          return;
+        }
+      }
+
+      // Glisser vers le bas en partant du haut de l'écran (barre d'état) = volet rapide.
+      // Ailleurs, glisser vers le bas reste « page précédente » dans les listes.
+      if (g.y < VOLET_DEPART_MAX_Y && g.dy > 40 && abs(g.dy) > abs(g.dx)) {
+        if (!a || a->id() != APP_VOLET) {
+          ouvrir(appVolet());
+          return;
+        }
+      }
+
+      // Glisser depuis le bord gauche vers la droite = retour (sauf dans le lanceur d'applications)
+      if (a && a->id() != APP_MENU && g.x < 60 && g.dx > 80 && abs(g.dx) > abs(g.dy)) {
+        a->retour();
+      } else {
+        a->glisser(g.dx, g.dy);
+      }
       break;
     default:
       break;
@@ -482,6 +533,7 @@ static void verifierVeilleAuto() {
   if (Acces::actif()) return;   // page web ouverte depuis l'ordinateur
   if (Energie::usbOrdinateur() && !Param.veilleSurUSB) return;
   if (Reseau::occupe()) return;
+  if (Reseau::agendaEnCours()) return;   // téléchargement de l'agenda (idée FolloUp : pas de veille en plein travail)
   App* a = courante();
   uint32_t delai = Param.veilleS * 1000UL;
   if (a) delai = a->delaiVeilleMs(delai);
@@ -555,7 +607,8 @@ void demarrer() {
   char rappel[ID_LONGUEUR + 1] = "";
   if (cause == ESP_SLEEP_WAKEUP_TIMER) {
     alerte = Minuteries::verifier();
-    if (Horloge::valide()) Stockage::rappelArrive(Horloge::maintenant(), rappel, sizeof(rappel));
+    if (Horloge::valide() && !Param.nePasDeranger) Stockage::rappelArrive(Horloge::maintenant(), rappel, sizeof(rappel));
+    if (Param.nePasDeranger) alerte = ALERTE_AUCUNE;   // pas de réveil pour une fin de minuterie
     // Sans bouton, seule la veille profonde (après Param.sommeilApresH heures) programme ce
     // réveil ; l'autre cas est l'écran « batterie vide », et alors on démarre normalement.
     if (alerte == ALERTE_AUCUNE && !rappel[0] && (BOUTONS_PRESENTS || Ecrans::veilleProfonde())) {

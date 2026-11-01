@@ -42,7 +42,7 @@ void bouton(const Boite& b, const char* libelle, int code, int arg = 0,
 void caseACocher(int x, int y, bool cochee);
 void separateur(int y, int x0 = MARGE, int x1 = ECRAN_L - MARGE);
 void etiquette(int x, int yBase, const char* texte);        // titre de section (pixel, gris)
-void pagination(const Pages& p);
+void pagination(const Pages& p, bool numero = true);        // numero : « 2 / 5 » au centre
 void interrupteur(int xDroite, int yCentre, bool actif);    // 100 x 48
 void ligneReglage(int y, const char* libelle, const char* valeur, int code, int arg = 0);
 void ligneInterrupteur(int y, const char* libelle, bool actif, int code);

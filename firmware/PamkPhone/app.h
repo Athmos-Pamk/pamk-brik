@@ -9,6 +9,7 @@ enum IdApp : uint8_t {
   APP_CALENDRIER, APP_CALCULATRICE, APP_REGLAGES, APP_CLAVIER, APP_DIALOGUE, APP_ALERTE,
   // 28/10/2026
   APP_RECHERCHE, APP_BILAN, APP_ASSISTANT, APP_ACCES,
+  APP_VOLET, APP_METEO, APP_HABITUDES, APP_ZEN, APP_CONVERTISSEUR,
 };
 
 class App {
@@ -36,7 +37,7 @@ class App {
 App* appAccueil();
 App* appMenu();
 App* appTaches();
-App* appTache(const char* id);
+App* appTache(const char* id, bool nouvelle = false);   // nouvelle : juste créée (Annuler / Ajouter)
 App* appNotes();
 App* appNote(const char* id);
 App* appPomodoro();
@@ -56,6 +57,11 @@ App* appRecherche();                  // app_recherche.cpp : tâches et notes
 App* appBilan();                      // app_bilan.cpp : bilan de la semaine
 App* appAssistant();                  // app_assistant.cpp : premier démarrage guidé
 App* appAcces();                      // app_acces.cpp : page web et mise à jour depuis l'ordinateur
+App* appVolet();                      // app_volet.cpp : volet déroulant réglages rapides
+App* appMeteo();                      // app_meteo.cpp : prévisions météo locales
+App* appHabitudes();                  // app_habitudes.cpp : suivi d'habitudes et rituels quotidiens
+App* appZen();                        // app_zen.cpp : respiration et cohérence cardiaque
+App* appConvertisseur();              // app_convertisseur.cpp : conversions d'unités
 App* appAlerteRappel(const char* idTache);   // app_alerte.cpp : rappel d'une tâche (id() = APP_ALERTE)
 
 // Saisie au clavier et confirmation (applis modales)

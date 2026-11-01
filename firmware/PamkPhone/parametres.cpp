@@ -12,8 +12,8 @@ void parametresParDefaut() {
   Param.veilleS = 120;
   Param.horlogeVeilleMin = 15;
   Param.orientation = ORIENTATION_DEFAUT;
-  Param.modeMaj = 0;          // pixels
-  Param.nettoyageAuto = 3;    // auto selon l'usure
+  Param.modeMaj = 0;          // pixels : la zone qui change passe au blanc, puis est redessinée
+  Param.nettoyageAuto = 3;    // auto : image complète à la mise en veille quand l'écran a servi
   Param.inverserVolume = false;
   Param.veilleLegere = true;
   Param.veilleSurUSB = false;
@@ -26,12 +26,13 @@ void parametresParDefaut() {
   copier(Param.fuseau, sizeof(Param.fuseau), FUSEAU_DEFAUT);
   copier(Param.ntp, sizeof(Param.ntp), NTP_DEFAUT);
   copier(Param.prenom, sizeof(Param.prenom), "");
-  Param.retourToucher = true;
+  Param.retourToucher = false;    // désactivé par défaut : évite le double-flash saccadé à chaque clic
   Param.clavierRapide = true;
   Param.tailleTexte = 0;
   Param.ecoNuit = true;
-  Param.sommeilApresH = 4;
+  Param.sommeilApresH = 0;    // jamais : sans bouton, seul le bouton de la carte en réveillerait
   Param.assistantFait = false;
+  Param.nePasDeranger = false;
   copier(Param.icalUrl, sizeof(Param.icalUrl), "");
 }
 
@@ -40,7 +41,15 @@ void parametresParDefaut() {
 // « complet » de la première version sont abandonnées une fois pour toutes.
 // 3 (28/10/2026) : image complète « auto » par défaut ; un téléphone déjà utilisé ne
 // repasse pas par le premier démarrage guidé.
-static const uint8_t VERSION_REGLAGES = 3;
+// 4 (29/10/2026) : mise à jour « douce » (sans clignotement, avec finition) et image complète
+// « auto » (faite à la mise en veille seulement) pour tous : c'est la réponse au
+// noir-blanc-noir et à l'usure de la dalle.
+// 5 (29/10/2026) : retour au mode pixels (Thomas : en doux, les pixels communs aux deux
+// pages restent noirs pendant la transition, un peu partout) ; il efface maintenant toute
+// la zone qui change au blanc, sans flash noir.
+// 6 (30/10/2026) : plus de sommeil profond après N heures de veille par défaut (Thomas ne veut
+// pas réveiller avec le bouton de la carte).
+static const uint8_t VERSION_REGLAGES = 6;
 
 static void migrer(uint8_t version) {
   Preferences p;
@@ -53,6 +62,15 @@ static void migrer(uint8_t version) {
   if (version < 3) {
     if (p.getUChar("netauto", 0) == 0) p.putUChar("netauto", 3);   // « jamais » était le défaut
     p.putBool("assistant", true);
+  }
+  if (version < 4) {
+    p.putUChar("netauto", 3);
+  }
+  if (version < 5) {
+    p.putUChar("majmode", 0);
+  }
+  if (version < 6) {
+    p.putUChar("sommeilh", 0);
   }
   p.putUChar("version", VERSION_REGLAGES);
   p.end();
@@ -95,6 +113,7 @@ void chargerParametres() {
   Param.ecoNuit = p.getBool("econuit", Param.ecoNuit);
   Param.sommeilApresH = p.getUChar("sommeilh", Param.sommeilApresH);
   Param.assistantFait = p.getBool("assistant", Param.assistantFait);
+  Param.nePasDeranger = p.getBool("npd", Param.nePasDeranger);
   s = p.getString("ical", Param.icalUrl);
   copier(Param.icalUrl, sizeof(Param.icalUrl), s.c_str());
   p.end();
@@ -140,6 +159,7 @@ void sauverParametres() {
   p.putBool("econuit", Param.ecoNuit);
   p.putUChar("sommeilh", Param.sommeilApresH);
   p.putBool("assistant", Param.assistantFait);
+  p.putBool("npd", Param.nePasDeranger);
   p.putString("ical", Param.icalUrl);
   p.end();
 }

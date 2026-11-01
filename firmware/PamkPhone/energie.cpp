@@ -102,6 +102,68 @@ static void noterEchantillon() {
   r_nbEch++;
 }
 
+// ---------------------------------------------------------------------------
+//  Pourcentage affiché (01/11/2026)
+//  La tension seule trompe pendant la charge : le chargeur de la carte (HX6610S, ~0,5 A avec
+//  R19 = 2,4 k) pousse la borne de la batterie ~0,1 V au-dessus de sa tension à vide, puis la
+//  tient à 4,2 V pendant la fin de charge. Lue telle quelle, la charge montait très vite puis
+//  retombait d'un coup au débranchement. Ses sorties CHRG / STDBY ne vont qu'aux LED : le
+//  chargeur se devine au saut de tension du branchement. Le pourcentage affiché suit la
+//  tension à des vitesses réalistes : en charge, il monte au plus comme une charge à 0,5 A
+//  (tension corrigée) et ne baisse pas ; sur batterie, il ne remonte pas (sauf vraie recharge
+//  non détectée) et baisse en douceur.
+// ---------------------------------------------------------------------------
+static const int CHARGE_CHUTE_MV = 120;         // tension en charge - tension à vide (~0,5 A)
+static const int CHARGE_CV_MV = 4190;           // au-delà : fin de charge à tension constante
+static const int SAUT_BRANCHEMENT_MV = 80;      // saut entre deux mesures : branché / débranché
+static const int RECUL_DEBRANCHE_MV = 60;       // en charge la tension ne fait que monter
+static const int MONTEE_PM_H = 300;             // 30 %/h au plus (2000 mAh à 0,5 A ≈ 25 %/h)
+static const int MONTEE_CV_PM_H = 200;          // 20 %/h pendant la fin de charge
+static const int BAISSE_PM_H = 300;             // la tension retombe vite après une charge
+static const int REMONTEE_SANS_CHARGE_PM = 50;  // +5 % sur batterie : chargeur non détecté
+
+static int s_pmAffiche = -1;                    // -1 = pas encore calculé
+static uint32_t s_tAffiche = 0;
+static bool s_chargeur = false;                 // chargeur deviné au saut de tension
+static int s_mvBrutPrec = 0;
+static int s_mvMaxCharge = 0;
+
+// Après chaque mesure (s_mv déjà lissée ; mvBrut = la mesure du moment).
+static void majAffiche(int mvBrut) {
+  if (s_mvBrutPrec) {
+    if (mvBrut - s_mvBrutPrec >= SAUT_BRANCHEMENT_MV) {
+      s_chargeur = true;
+      s_mvMaxCharge = s_mv;
+    } else if (s_mvBrutPrec - mvBrut >= SAUT_BRANCHEMENT_MV) {
+      s_chargeur = false;
+    }
+  }
+  s_mvBrutPrec = mvBrut;
+  if (s_chargeur) {   // débranché sans saut net (batterie pleine) : la tension redescend
+    s_mvMaxCharge = maxi(s_mvMaxCharge, s_mv);
+    if (s_mv < s_mvMaxCharge - RECUL_DEBRANCHE_MV) s_chargeur = false;
+  }
+  const bool charge = enCharge();
+  const bool finCharge = s_mv >= CHARGE_CV_MV;
+  int cible = pourMilleDe(s_mv);
+  if (charge) cible = finCharge ? 1000 : pourMilleDe(s_mv - CHARGE_CHUTE_MV);
+  const uint32_t t = millis();
+  if (s_pmAffiche < 0) {
+    s_pmAffiche = cible;
+    s_tAffiche = t;
+    return;
+  }
+  const uint64_t dt = t - s_tAffiche;   // ms
+  s_tAffiche = t;
+  const int montee = maxi(1, (int)(dt * (finCharge ? MONTEE_CV_PM_H : MONTEE_PM_H) / 3600000ULL));
+  const int baisse = maxi(1, (int)(dt * BAISSE_PM_H / 3600000ULL));
+  if (charge || cible > s_pmAffiche + REMONTEE_SANS_CHARGE_PM) {
+    if (cible > s_pmAffiche) s_pmAffiche = mini(cible, s_pmAffiche + montee);
+  } else if (cible < s_pmAffiche) {
+    s_pmAffiche = maxi(cible, s_pmAffiche - baisse);
+  }
+}
+
 void demarrer() {
   s_cause = esp_sleep_get_wakeup_cause();
   analogSetPinAttenuation(BROCHE_BATTERIE, ADC_11db);   // ~0..3,1 V : batterie/2 <= 2,1 V
@@ -126,6 +188,7 @@ void mesurer() {
   else s_mv = (s_mv * 3 + mv) / 4;                      // lissage
   s_valide = true;
   s_tMesure = millis();
+  majAffiche(mv);
   noterEchantillon();
 }
 
@@ -147,7 +210,7 @@ void boucle() {
 int millivolts() { return s_valide ? s_mv : 0; }
 bool mesureValide() { return s_valide; }
 
-int pourcentage() { return s_valide ? pourMilleDe(s_mv) / 10 : 0; }
+int pourcentage() { return (s_valide && s_pmAffiche >= 0) ? s_pmAffiche / 10 : 0; }
 
 bool texteAutonomie(char* sortie, size_t taille) {
   if (!sortie || taille == 0) return false;
@@ -198,7 +261,7 @@ bool usbOrdinateur() {
 #endif
 }
 
-bool enCharge() { return usbOrdinateur() || (s_valide && s_mv >= BATTERIE_CHARGE_MV); }
+bool enCharge() { return usbOrdinateur() || s_chargeur || (s_valide && s_mv >= BATTERIE_CHARGE_MV); }
 bool faible() { return s_valide && s_mv < BATTERIE_FAIBLE_MV && !enCharge(); }
 bool vide() { return s_valide && s_mv < BATTERIE_VIDE_MV && !enCharge(); }
 

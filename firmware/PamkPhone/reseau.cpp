@@ -2,6 +2,7 @@
 #include "horloge.h"
 #include "parametres.h"
 #include "agenda.h"
+#include "meteo.h"
 #include <WiFi.h>
 #include <Preferences.h>
 
@@ -32,6 +33,7 @@ static uint32_t s_synchroAvant = 0;
 static bool s_garde = false;          // Accès depuis l'ordinateur : rester connecté
 static bool s_agendaDemande = false;  // mise à jour de l'agenda à faire dès que possible
 static bool s_agendaFait = false;     // agenda déjà tenté pendant cette connexion
+static bool s_meteoFaite = false;
 
 static void copier(char* d, size_t n, const char* s) {
   strncpy(d, s ? s : "", n - 1);
@@ -334,6 +336,7 @@ void boucle() {
         if (s_memoriser) memoriser(s_ssid, s_mdp);
         s_synchroAvant = Horloge::derniereSynchro();
         s_agendaFait = false;
+        s_meteoFaite = false;
         Horloge::lancerNTP(Param.ntp);
       } else if (st == WL_CONNECT_FAILED || st == WL_NO_SSID_AVAIL || m - s_t0 > DELAI_CONNEXION_MS) {
         char msg[80];
@@ -354,6 +357,10 @@ void boucle() {
         synchroniserAgenda();
       } else if (heureRecue && !s_agendaFait && Agenda::aSynchroniser()) {
         synchroniserAgenda();
+      }
+      if (!s_meteoFaite && (heureRecue || !Meteo::disponible() || (Horloge::valide() && Horloge::maintenant() - Meteo::donnees().majUtc > 7200UL))) {
+        s_meteoFaite = true;
+        Meteo::synchroniser();
       }
       if (s_agendaDemande && millis() - s_t0 > DELAI_NTP_MS) s_agendaDemande = false;   // jamais d'heure : abandon
       if (s_pourHeure && !s_garde && !s_agendaDemande && (heureRecue || millis() - s_t0 > DELAI_NTP_MS)) {

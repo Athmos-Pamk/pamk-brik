@@ -3,6 +3,7 @@
 #include "reseau.h"
 #include "horloge.h"
 #include "minuteries.h"
+#include "parametres.h"
 
 namespace UI {
 
@@ -103,6 +104,12 @@ void barreEtat(bool afficherHeure) {
     x -= 30 + 14;
     Dessin::pictoWifi(x, 12, 0, GRIS);
   }
+  // Ne pas déranger : petit croissant de lune
+  if (Param.nePasDeranger) {
+    x -= 22 + 14;
+    Dessin::cerclePlein(x + 11, 24, 10, NOIR);
+    Dessin::cerclePlein(x + 17, 19, 9, BLANC);
+  }
   Dessin::rectPlein(0, BARRE_ETAT_H - 2, ECRAN_L, 2, GRIS_CLAIR);
 }
 
@@ -172,7 +179,7 @@ void separateur(int y, int x0, int x1) { Dessin::rectPlein(x0, y, x1 - x0, 2, GR
 
 void etiquette(int x, int yBase, const char* texte) { Dessin::texte(F_PIXEL, x, yBase, texte, GRIS_FONCE); }
 
-void pagination(const Pages& p) {
+void pagination(const Pages& p, bool numero) {
   if (p.nb <= 1) return;
   const int y = PIED_Y + 12, h = 64, l = 120;
   const bool avant = p.page > 0, apres = p.page + 1 < p.nb;
@@ -184,6 +191,7 @@ void pagination(const Pages& p) {
   Dessin::icone(ICONE_CHEVRON_D, d.x + (l - 20) / 2, y + (h - 28) / 2, 4, apres ? NOIR : GRIS_CLAIR);
   if (avant) zone(g, CODE_PAGE_PREC);
   if (apres) zone(d, CODE_PAGE_SUIV);
+  if (!numero) return;
   char t[16];
   snprintf(t, sizeof(t), "%d / %d", p.page + 1, p.nb);
   Dessin::texteCentre(F_PIXEL, ECRAN_L / 2, Dessin::baseCentree(F_PIXEL, y, h), t, GRIS_FONCE);

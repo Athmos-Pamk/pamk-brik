@@ -8,6 +8,8 @@
 #include "parametres.h"
 #include "minuteries.h"
 #include "agenda.h"
+#include "meteo.h"
+#include "stats.h"
 
 namespace {
 
@@ -19,8 +21,8 @@ enum Code {
 // Mise en page (28/10/2026), de haut en bas sous la barre d'état (0..47) :
 const int Y_HORLOGE = 182;        // ligne de base de l'horloge (chiffres de 112 px : 70..182)
 const int Y_DATE = 226;           // ligne de base de la date
-const int Y_PAMK = 246;           // haut du bloc Pamk + salutation (60 px)
-const int Y_SUITE = 316;          // rendez-vous éventuel, puis la section « Aujourd'hui »
+const int Y_PAMK = 260;           // haut du bloc Pamk + salutation (bien aéré sous la date)
+const int Y_SUITE = 330;          // rendez-vous éventuel, puis la section « Aujourd'hui »
 const int RDV_H = 48;             // ligne « prochain rendez-vous »
 const int SECTION_H = 64;         // titre « AUJOURD'HUI », « Tout voir » et bouton +
 const int H_TACHE = 64;
@@ -63,6 +65,10 @@ class AppAccueil : public App {
     if (Horloge::valide()) {
       Horloge::texteDateLongue(date, sizeof(date), Horloge::dateDe(t), false);
       date[0] = (char)toupper((unsigned char)date[0]);
+      if (Meteo::disponible()) {
+        const size_t len = strlen(date);
+        snprintf(date + len, sizeof(date) - len, " · %d°C", Meteo::temperature());
+      }
     } else {
       // Jamais synchronisée (premier démarrage, RTC d'usine) : on le dit au lieu d'afficher
       // une heure fausse. Toucher ici ouvre Réglages > Wi-Fi.
@@ -71,22 +77,31 @@ class AppAccueil : public App {
     Dessin::texteCentre(F_GRAS, ECRAN_L / 2, Y_DATE, date, NOIR);
     UI::zone(boite(0, BARRE_ETAT_H + 4, ECRAN_L, Y_DATE + 14 - BARRE_ETAT_H - 4), C_HORLOGE);
 
-    // Pamk et salutation
-    Dessin::visagePamk(MARGE + 44, Y_PAMK + 2, 8, VISAGE_NORMAL, NOIR);
+    // Pamk et salutation (centrés horizontalement au milieu de l'écran)
     char salut[64];
     const char* bonjour = "Bonjour";
     if (t.tm_hour >= 18 || t.tm_hour < 5) bonjour = "Bonsoir";
     else if (t.tm_hour >= 12) bonjour = "Bon après-midi";
     if (Param.prenom[0]) snprintf(salut, sizeof(salut), "%s %s", bonjour, Param.prenom);
     else snprintf(salut, sizeof(salut), "%s !", bonjour);
-    Dessin::texteTronque(F_GRAS, MARGE + 112, Y_PAMK + 28, ECRAN_L - MARGE * 2 - 112, salut, NOIR);
+
     char resume[64];
     const int aFaire = Stockage::nbTachesAFaire();
     const int retard = Stockage::nbTachesEnRetard();
     if (aFaire == 0) snprintf(resume, sizeof(resume), "Rien à faire pour l'instant");
     else if (retard > 0) snprintf(resume, sizeof(resume), "%d à faire, dont %d en retard", aFaire, retard);
     else snprintf(resume, sizeof(resume), "%d tâche%s à faire", aFaire, aFaire > 1 ? "s" : "");
-    Dessin::texte(F_PETITE, MARGE + 112, Y_PAMK + 58, resume, GRIS_FONCE);
+
+    const int pPamk = 7;
+    const int wPamk = 11 * pPamk;
+    const int ecart = 16;
+    const int lTxt = mini(ECRAN_L - 2 * MARGE - wPamk - ecart, maxi(Dessin::largeur(F_GRAS, salut), Dessin::largeur(F_PETITE, resume)));
+    const int lTotal = wPamk + ecart + lTxt;
+    const int xBloc = (ECRAN_L - lTotal) / 2;
+
+    Dessin::visagePamk(xBloc + wPamk / 2, Y_PAMK + 4, pPamk, VISAGE_NORMAL, NOIR);
+    Dessin::texteTronque(F_GRAS, xBloc + wPamk + ecart, Y_PAMK + 26, ECRAN_L - MARGE - (xBloc + wPamk + ecart), salut, NOIR);
+    Dessin::texteTronque(F_PETITE, xBloc + wPamk + ecart, Y_PAMK + 54, ECRAN_L - MARGE - (xBloc + wPamk + ecart), resume, GRIS_FONCE);
 
     // Prochain rendez-vous (agenda en lecture seule), s'il y en a un
     int y = Y_SUITE;
@@ -214,8 +229,29 @@ class AppAccueil : public App {
 
   // Section « Aujourd'hui » : en retard puis du jour (avec l'heure). S'il reste de la place,
   // les suivantes (plus tard, date en gris, ou sans date) sous un pointillé.
+  // 01/11/2026 (idée reprise de FolloUp) : progression du jour, « 2/5 » à côté du titre et
+  // une barre noire sur le trait du dessus, qui se remplit à chaque tâche cochée.
   void dessinerTaches(int y) {
     UI::etiquette(MARGE, y + 48, "AUJOURD'HUI");
+    // Reste à faire aujourd'hui : en retard, du jour, et sans date (rien ne dit qu'elles
+    // attendront) ; les tâches prévues un autre jour n'en font pas partie.
+    JourStats jour;
+    Stats::derniersJours(&jour, 1);
+    const int faites = jour.taches;
+    int tmp[50];
+    int reste = Stockage::tachesAujourdhui(tmp, 50);
+    for (int i = 0; i < Stockage::nbTaches(); i++) {
+      const Tache* ta = Stockage::tache(i);
+      if (ta && !ta->faite && !ta->echeance) reste++;
+    }
+    const int total = faites + reste;
+    if (total > 0) {
+      char prog[16];
+      snprintf(prog, sizeof(prog), "%d/%d", faites, total);
+      // police normale : « 12/15 » en pixel (20 px par caractère) toucherait « Tout voir »
+      Dessin::texte(F_PETITE, MARGE + Dessin::largeur(F_PIXEL, "AUJOURD'HUI") + 12, y + 44, prog, NOIR);
+      Dessin::rectPlein(MARGE, y - 4, (int)((long)(ECRAN_L - 2 * MARGE) * faites / total), 4, NOIR);
+    }
     const Boite plus = boite(ECRAN_L - MARGE - 64, y + 8, 64, 50);
     Dessin::chanfrein(plus.x, plus.y, plus.l, plus.h, CHANFREIN, TRAIT, NOIR);
     Dessin::pictoPlus(plus.x + plus.l / 2, plus.y + plus.h / 2, 26, 5, NOIR);
@@ -234,11 +270,13 @@ class AppAccueil : public App {
     int n = nAuj;
     if (nAuj < nb) n = Stockage::listeTaches(TACHES_A_FAIRE, idx, nb);
     if (n == 0) {
-      Dessin::texte(F_TEXTE, MARGE, yy + 42, "Rien à faire. Profite !", GRIS_FONCE);
+      if (faites > 0) Dessin::texte(F_GRAS, MARGE, yy + 42, "Tout est fait. Bravo !", NOIR);
+      else Dessin::texte(F_TEXTE, MARGE, yy + 42, "Rien à faire. Profite !", GRIS_FONCE);
       return;
     }
-    if (nAuj == 0) {   // rien aujourd'hui : on le dit, puis la suite
-      Dessin::texte(F_TEXTE, MARGE, yy + 42, "Rien pour aujourd'hui.", GRIS_FONCE);
+    if (nAuj == 0 && reste == 0) {   // plus rien pour aujourd'hui : on le dit, puis les jours suivants
+      if (faites > 0) Dessin::texte(F_GRAS, MARGE, yy + 42, "Tout est fait pour aujourd'hui !", NOIR);
+      else Dessin::texte(F_TEXTE, MARGE, yy + 42, "Rien pour aujourd'hui.", GRIS_FONCE);
       yy += H_TACHE;
       if (n > nb - 1) n = nb - 1;
     }

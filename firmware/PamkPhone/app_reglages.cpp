@@ -21,7 +21,7 @@ enum Code {
   W_MODE, W_SYNCHRO, W_CHERCHER, W_OUBLIER, W_RESEAU, W_ETEINDRE,
   H_FUSEAU, H_NTP, H_PLUS, H_MOINS, H_ENREGISTRER,
   E_ORIENTATION, E_MODE, E_COMPLET, E_NETTOYER, E_MIRE, E_TOUCHER, E_CLAVIER, E_TAILLE,
-  N_VEILLE, N_HORLOGE, N_LEGERE, N_USB, N_DORMIR, N_ETEINDRE, N_NUIT, N_PROFOND,
+  N_VEILLE, N_HORLOGE, N_LEGERE, N_USB, N_DORMIR, N_ETEINDRE, N_NUIT, N_PROFOND, N_NPD,
   O_MOINS, O_PLUS,
   B_INVERSER,
   D_EFFACER, D_ACCES, A_ASSISTANT,
@@ -177,6 +177,7 @@ class AppReglages : public App {
       case N_LEGERE: Param.veilleLegere = !Param.veilleLegere; sauver = true; break;
       case N_USB: Param.veilleSurUSB = !Param.veilleSurUSB; sauver = true; break;
       case N_NUIT: Param.ecoNuit = !Param.ecoNuit; sauver = true; break;
+      case N_NPD: Param.nePasDeranger = !Param.nePasDeranger; sauver = true; break;
       case N_PROFOND: Param.sommeilApresH = suivant(PROFONDS, 6, Param.sommeilApresH); sauver = true; break;
       case N_DORMIR: Systeme::mettreEnVeille(); return;
       case N_ETEINDRE: Systeme::eteindre(); return;
@@ -440,7 +441,7 @@ class AppReglages : public App {
     UI::barreTitre("Écran", true);
     int y = CONTENU_Y;
     UI::ligneReglage(y, "Retourner l'écran", Param.orientation == ORIENTATION_DEFAUT ? "non" : "oui", E_ORIENTATION); y += RANG_H;
-    UI::ligneReglage(y, "Mise à jour", Param.modeMaj == MAJ_DOUX ? "douce" : "pixel par pixel", E_MODE); y += RANG_H;
+    UI::ligneReglage(y, "Mise à jour", Param.modeMaj == MAJ_DOUX ? "sans clignotement" : "pixel par pixel", E_MODE); y += RANG_H;
     static const char* const AUTO[4] = {"jamais", "à la veille", "toutes les 50", "auto"};
     UI::ligneReglage(y, "Image complète auto", AUTO[Param.nettoyageAuto % 4], E_COMPLET); y += RANG_H;
     UI::ligneInterrupteur(y, "Réaction au toucher", Param.retourToucher, E_TOUCHER); y += RANG_H;
@@ -450,8 +451,8 @@ class AppReglages : public App {
     UI::ligneReglage(y, "Mire de gris", "test", E_MIRE); y += RANG_H;
     y += 26;
     const char* aide[] = {
-      "Image complète auto : l'écran repart propre quand il a",
-      "beaucoup servi, au moment d'un changement de page.",
+      "Image complète auto : quand l'écran a beaucoup servi,",
+      "il repart propre à la mise en veille (on ne regarde plus).",
     };
     for (int i = 0; i < 2; i++) Dessin::texte(F_PETITE, MARGE, y + i * 30, aide[i], GRIS_FONCE);
     char info[112];
@@ -485,11 +486,12 @@ class AppReglages : public App {
     UI::ligneInterrupteur(y, "Veille légère", Param.veilleLegere, N_LEGERE); y += RANG_H;
     UI::ligneInterrupteur(y, "Veille même branché au PC", Param.veilleSurUSB, N_USB); y += RANG_H;
     UI::ligneInterrupteur(y, "Mode nuit (23 h - 7 h)", Param.ecoNuit, N_NUIT); y += RANG_H;
+    UI::ligneInterrupteur(y, "Mode Ne pas déranger", Param.nePasDeranger, N_NPD); y += RANG_H;
     if (Param.sommeilApresH) snprintf(v, sizeof(v), "après %u h", (unsigned)Param.sommeilApresH);
     else snprintf(v, sizeof(v), "jamais");
     UI::ligneReglage(y, "Sommeil profond", v, N_PROFOND); y += RANG_H;
-    y += 4;
-    UI::etiquette(MARGE, y + 20, "BATTERIE");
+    // Bloc batterie compact : 7 lignes de réglages au-dessus, boutons en 836 (29/10/2026).
+    UI::etiquette(MARGE, y + 16, "BATTERIE");
     char b[64];
     if (Energie::mesureValide()) {
       const int mv = Energie::millivolts();
@@ -497,16 +499,17 @@ class AppReglages : public App {
     } else {
       snprintf(b, sizeof(b), "pas encore mesurée");
     }
-    Dessin::texte(F_GRAS, MARGE, y + 66, b, NOIR);
-    const char* usb = Energie::usbOrdinateur() ? "Ordinateur USB détecté" :
-                      (Energie::enCharge() ? "Tension de charge (USB branché ?)" : "Sur batterie");
-    Dessin::texte(F_PETITE, MARGE, y + 100, usb, GRIS_FONCE);
+    Dessin::texte(F_GRAS, MARGE, y + 52, b, NOIR);
+    const char* usb = Energie::usbOrdinateur() ? "Ordinateur USB" :
+                      (Energie::enCharge() ? "En charge (USB ?)" : "Sur batterie");
+    char ligne[96];
     char autonomie[48];
     if (Energie::texteAutonomie(autonomie, sizeof(autonomie))) {
-      char ligne[72];
-      snprintf(ligne, sizeof(ligne), "Autonomie estimée : %s", autonomie);
-      Dessin::texte(F_PETITE, MARGE, y + 130, ligne, GRIS_FONCE);
+      snprintf(ligne, sizeof(ligne), "%s · autonomie %s", usb, autonomie);
+    } else {
+      snprintf(ligne, sizeof(ligne), "%s", usb);
     }
+    Dessin::texteTronque(F_PETITE, MARGE, y + 84, ECRAN_L - 2 * MARGE, ligne, GRIS_FONCE);
     const int lb = (ECRAN_L - 2 * MARGE - 16) / 2;
     UI::bouton(boite(MARGE, 836, lb, 76), "Mettre en veille", N_DORMIR);
     UI::bouton(boite(MARGE + lb + 16, 836, lb, 76), "Éteindre", N_ETEINDRE);

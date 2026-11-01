@@ -79,10 +79,13 @@ static const long INVERSION_MAX_PX = 60000;
 static const int INVERSION_CADRE_PX = 6;
 // Image complète automatique selon l'usure (Param.nettoyageAuto == 3). Chaque mise à jour
 // ajoute à l'usure ses pixels pilotés, multipliés par un poids : sans nettoyage, les traces
-// s'accumulent plus vite. Au-delà de USURE_SEUIL, la prochaine mise à jour qui est un gros
-// changement (changement de page) devient une image complète : son flash se fond dans le
-// changement de page. L'usure repart de zéro après toute image complète.
-static const uint32_t USURE_SEUIL = 6UL * ECRAN_L * ECRAN_H; // ~3,1 millions : six écrans entiers
+// s'accumulent plus vite. Au-delà de USURE_SEUIL, l'image complète est faite à la prochaine
+// mise en veille (nettoyageConseille(), 29/10/2026) : on ne regarde plus l'écran, son flash ne
+// gêne personne. Pendant l'utilisation, seulement au-delà de USURE_SECOURS (téléphone qui ne
+// se met jamais en veille), sur un changement de page. L'usure repart de zéro après toute
+// image complète.
+static const uint32_t USURE_SEUIL = 6UL * ECRAN_L * ECRAN_H;      // ~3,1 millions : six écrans entiers
+static const uint32_t USURE_SECOURS = 4UL * USURE_SEUIL;
 static const uint32_t USURE_POIDS_PIXELS = 1;  // « pixels » : nettoyés à chaque fois (inversion au
                                                // toucher aussi : aller-retour noir/blanc)
 static const uint32_t USURE_POIDS_DOUX = 2;    // « doux » : jamais nettoyés
@@ -346,6 +349,26 @@ static void examinerVoisins(int i) {
   if (i < TAILLE_TOILE - ECRAN_L && aEtendre(i + ECRAN_L)) marquer(i + ECRAN_L);
 }
 
+// Changement de page en mode pixels (29/10/2026) : TOUT ce qui n'est pas blanc dans la zone
+// qui change passe au blanc, puis la nouvelle page est dessinée. Sans ça, les pixels noirs
+// communs aux deux pages restaient seuls pendant la transition, un peu partout. Zone : pour
+// chaque colonne qui change, de son premier à son dernier pixel changé (analyser()).
+// Retourne le nombre de pixels marqués.
+static long effacerZoneChangee() {
+  long marques = 0;
+  for (int x = 0; x < ECRAN_L; x++) {
+    if (!s_colBesoin[x]) continue;
+    for (int y = s_colY0[x]; y <= s_colY1[x]; y++) {
+      const int i = y * ECRAN_L + x;
+      if (aEtendre(i)) {
+        s_affiche[i] = FORCE;
+        marques++;
+      }
+    }
+  }
+  return marques;
+}
+
 // Mode pixels : les pixels non blancs qui ne changent pas mais qui touchent (de proche en
 // proche) un pixel qui change sont nettoyés et redessinés avec lui. Avant, la partie commune
 // à l'ancienne et à la nouvelle image (morceau de lettre, bord de forme) restait noire
@@ -430,9 +453,9 @@ static void dessinerComplet() {
   snprintf(s_texteMode, sizeof(s_texteMode), "complet");
 }
 
-// Ajoute des pixels pilotés à l'usure (inutile de compter au-delà du seuil : pas de débordement).
+// Ajoute des pixels pilotés à l'usure (inutile de compter au-delà du secours : pas de débordement).
 static void ajouterUsure(long pixels, uint32_t poids) {
-  if (pixels > 0 && s_usure < USURE_SEUIL) s_usure += (uint32_t)pixels * poids;
+  if (pixels > 0 && s_usure < USURE_SECOURS) s_usure += (uint32_t)pixels * poids;
 }
 
 // Colonnes portrait touchées par le dernier analyser().
@@ -540,6 +563,39 @@ static void pousserMasque(bool blanc, uint32_t duree) {
   epd_end_frame();
 }
 
+static inline void noterMasque(int x, int y, uint8_t code);
+
+// Finition du mode doux (29/10/2026). Les transitions directes du mode doux (epd_draw_image,
+// 102 µs au plus) ne mènent pas un pixel jusqu'au vrai noir ou au vrai blanc : sans finition,
+// il restait des zones grises. Chaque pixel qui vient de changer et dont la valeur voulue est
+// noire ou blanche reçoit donc MAJ_FINITION_TRAMES poussées de plus vers cette valeur, sans
+// clignoter (il ne va que vers sa cible). Seuls les pixels qui changent sont poussés, et dans
+// le sens de leur changement : un pixel qui passe au noir puis plus tard au blanc reçoit
+// autant de « noir » que de « blanc ». (L'ancien blanchiment de tout le fond après chaque
+// action poussait toujours les mêmes pixels dans le même sens : charge qui s'accumule dans la
+// dalle, traces et usure.) Les gris ne sont pas poussés : ils quitteraient leur valeur.
+// À appeler après les étapes de dessin, avant copierVersAffiche(). Retourne vrai s'il y en a.
+// noirSeulement (mode pixels) : les pixels effacés ont déjà eu leur blanc (MAJ_POUSSEES x 50 µs) ;
+// seuls ceux redessinés en noir reçoivent la finition, pour autant de noir que de blanc.
+static bool preparerFinition(const Groupe* g, int nb, bool noirSeulement) {
+  memset(s_ligneMasque, 0, sizeof(s_ligneMasque));
+  bool unPixel = false;
+  for (int i = 0; i < nb; i++) {
+    for (int y = g[i].y0; y <= g[i].y1; y++) {
+      const uint8_t* tl = s_toile + y * ECRAN_L;
+      const uint8_t* al = s_affiche + y * ECRAN_L;
+      for (int x = g[i].x0; x <= g[i].x1; x++) {
+        const uint8_t n = tl[x];
+        if (n != NOIR && (n != BLANC || noirSeulement)) continue;
+        if (al[x] == n) continue;                        // pas piloté par cette mise à jour
+        noterMasque(x, y, n == NOIR ? M_FONCER : M_ECLAIRCIR);
+        unPixel = true;
+      }
+    }
+  }
+  return unPixel;
+}
+
 // Une étape (filtre + mode du pilote) sur tous les groupes qui en ont besoin.
 static int etape(const Groupe* g, const Rect_t* r, int nb, uint8_t besoin, Filtre f, DrawMode_t m) {
   int passes = 0;
@@ -560,8 +616,8 @@ static int mettreAJourGroupes(const Groupe* g, int nb) {
   Rect_t r[16];
   for (int i = 0; i < nb; i++) r[i] = versNatif(g[i].x0, g[i].y0, g[i].x1 - g[i].x0 + 1, g[i].y1 - g[i].y0 + 1);
   int passes = 0;
-  // Nettoyage des seuls pixels concernés, sur tout l'écran à la fois : au noir puis au blanc,
-  // avec la même énergie qu'un cycle de epd_clear(). Les autres pixels ne sont pas pilotés.
+  // Nettoyage des seuls pixels concernés, sur tout l'écran à la fois (MAJ_POUSSEES x 50 µs).
+  // Les autres pixels ne sont pas pilotés.
   if (!MAJ_NETTOYAGE_FORT) {   // secours : ancien nettoyage, plus faible (zones grises)
     for (int c = 0; c < MAJ_CYCLES_PIXELS; c++) {
       passes += etape(g, r, nb, B_NETTOYER, F_NETTOYER, BLACK_ON_WHITE);
@@ -569,14 +625,28 @@ static int mettreAJourGroupes(const Groupe* g, int nb) {
     }
   } else if (preparerMasque(g, r, nb)) {
     for (int c = 0; c < MAJ_CYCLES_PIXELS; c++) {
-      for (int k = 0; k < MAJ_POUSSEES; k++) pousserMasque(false, DUREE_CYCLE_US * 10);
+      // Effacement : directement au blanc (29/10/2026, plus de flash noir avant le blanc). Le
+      // passage au noir d'abord reste possible (MAJ_NETTOYAGE_NOIR) si des traces apparaissent.
+      if (MAJ_NETTOYAGE_NOIR) {
+        for (int k = 0; k < MAJ_POUSSEES; k++) pousserMasque(false, DUREE_CYCLE_US * 10);
+        passes++;
+      }
       for (int k = 0; k < MAJ_POUSSEES; k++) pousserMasque(true, DUREE_CYCLE_US * 10);
-      passes += 2;
+      passes++;
     }
   }
   passes += etape(g, r, nb, B_ECLAIRCIR, F_ECLAIRCIR, WHITE_ON_WHITE);
   passes += etape(g, r, nb, B_ASSOMBRIR, F_ASSOMBRIR, BLACK_ON_WHITE);
   passes += etape(g, r, nb, B_CIBLE, F_CIBLE, BLACK_ON_WHITE);   // = epd_draw_grayscale_image
+  // Finition : en doux, vers le noir et le blanc ; en mode pixels, seulement les pixels
+  // redessinés en noir (102 µs de noir + la finition = le blanc de l'effacement : équilibré).
+  // Avec le passage au noir d'abord, le nettoyage est déjà équilibré : pas de finition.
+  const bool finitionPixels = s_mode == MAJ_PIXELS && !MAJ_NETTOYAGE_NOIR;
+  if ((s_mode == MAJ_DOUX || finitionPixels) && MAJ_FINITION_TRAMES > 0 &&
+      preparerFinition(g, nb, s_mode == MAJ_PIXELS)) {
+    for (int k = 0; k < MAJ_FINITION_TRAMES; k++) pousserMasque(false, DUREE_CYCLE_US * 10);   // masque tel quel
+    passes++;
+  }
   for (int i = 0; i < nb; i++) copierVersAffiche(versPortrait(r[i]));
   return passes;
 }
@@ -588,14 +658,18 @@ void rafraichir(bool complet) {
   long changes = analyser(inconnus);
   if (changes == 0 && !complet) return;
 
-  // Usure : l'image complète attend un gros changement (changement de page).
-  const bool parUsure = s_completAuto && s_usure >= USURE_SEUIL && grosChangement(changes, compterColonnes());
+  // Usure : l'image complète attend la mise en veille (nettoyageConseille()). Pendant
+  // l'utilisation, seulement en secours, sur un changement de page.
+  const bool parUsure = s_completAuto && s_usure >= USURE_SECOURS && grosChangement(changes, compterColonnes());
   const bool faireComplet = complet ||
                             inconnus * 100 > (long)TAILLE_TOILE * PART_INCONNU_COMPLET_PCT ||
                             (s_completTous > 0 && s_partiels >= s_completTous) ||
                             parUsure;
-  if (!faireComplet && s_mode == MAJ_PIXELS && etendreNettoyage() > 0) {
-    changes = analyser(inconnus);   // ajoute les colonnes des pixels marqués
+  if (!faireComplet && s_mode == MAJ_PIXELS) {
+    long marques = 0;
+    if (grosChangement(changes, compterColonnes())) marques += effacerZoneChangee();
+    marques += etendreNettoyage();
+    if (marques > 0) changes = analyser(inconnus);   // ajoute les colonnes des pixels marqués
   }
   epd_poweron();
   if (faireComplet) {
@@ -770,6 +844,8 @@ void nettoyerEnProfondeur() {
   s_nb++;
   s_duree = millis() - t0;
 }
+
+bool nettoyageConseille() { return s_completAuto && s_usure >= USURE_SEUIL; }
 
 void supposerAffiche() {
   if (s_toile) memcpy(s_affiche, s_toile, TAILLE_TOILE);

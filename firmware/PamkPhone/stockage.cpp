@@ -189,6 +189,15 @@ int occurrenceSuivante(const Tache& t) {
   const int auj = Horloge::aujourdhui();
   const int e = t.echeance ? t.echeance : auj;
   const int base = e > auj ? e : auj;
+  if (t.joursSemaine != 0) {
+    int d = Horloge::ajouterJours(base, 1);
+    for (int k = 0; k < 14; k++) {
+      const int js = Horloge::jourSemaine(d);
+      if (t.joursSemaine & (1 << js)) return d;
+      d = Horloge::ajouterJours(d, 1);
+    }
+    return d;
+  }
   switch (t.repetition) {
     case REP_JOUR:
       return Horloge::ajouterJours(base, 1);
@@ -252,6 +261,8 @@ bool sauverTaches() {
     if (t.rappelVu) o["rappelVu"] = t.rappelVu;
     if (t.rappelReporte) o["rappelReporte"] = t.rappelReporte;
     if (t.repetition == REP_MOIS && t.jourMois) o["jourMois"] = t.jourMois;
+    if (t.description[0]) o["desc"] = (const char*)t.description;
+    if (t.joursSemaine) o["jours"] = t.joursSemaine;
   }
   ajouterTraces(doc, 't');
   if (doc.overflowed()) {
@@ -273,6 +284,7 @@ bool sauverNotes() {
     o["texte"] = (const char*)(n.texte ? n.texte : "");
     o["cree"] = n.cree;
     o["maj"] = n.maj;
+    if (n.epinglee) o["epingle"] = true;
   }
   ajouterTraces(doc, 'n');
   if (doc.overflowed()) {
@@ -338,6 +350,8 @@ void chargerTaches() {
     t.rappelVu = o["rappelVu"] | 0UL;
     t.rappelReporte = o["rappelReporte"] | 0UL;
     t.jourMois = (uint8_t)borner(o["jourMois"] | 0, 0, 31);
+    copier(t.description, sizeof(t.description), o["desc"] | "");
+    t.joursSemaine = (uint8_t)(o["jours"] | 0);
     s_nbT++;
   }
   lireTraces(doc, 't');
@@ -364,6 +378,7 @@ void chargerNotes() {
     if (!n.texte) break;
     n.cree = o["cree"] | 0UL;
     n.maj = o["maj"] | 0UL;
+    n.epinglee = o["epingle"] | false;
     s_nbN++;
   }
   lireTraces(doc, 'n');
@@ -509,6 +524,35 @@ bool echeanceTache(const char* id, int echeance) {
     t.jourMois = (uint8_t)(echeance % 100);
   }
   armerRappel(t);
+  t.maj = Horloge::maintenant();
+  return sauverTaches();
+}
+
+bool descriptionTache(const char* id, const char* desc) {
+  const int i = indexTache(id);
+  if (i < 0) return false;
+  copier(s_taches[i].description, sizeof(s_taches[i].description), desc ? desc : "");
+  s_taches[i].maj = Horloge::maintenant();
+  return sauverTaches();
+}
+
+bool joursSemaineTache(const char* id, uint8_t jours) {
+  const int i = indexTache(id);
+  if (i < 0) return false;
+  Tache& t = s_taches[i];
+  t.joursSemaine = jours & 0x7F;
+  if (t.joursSemaine != 0) {
+    t.repetition = REP_SEMAINE;
+    if (!t.echeance && Horloge::valide()) {
+      int d = Horloge::aujourdhui();
+      for (int k = 0; k < 7; k++) {
+        int js = Horloge::jourSemaine(d);
+        if (t.joursSemaine & (1 << js)) break;
+        d = Horloge::ajouterJours(d, 1);
+      }
+      t.echeance = d;
+    }
+  }
   t.maj = Horloge::maintenant();
   return sauverTaches();
 }
@@ -741,6 +785,23 @@ void titreNote(const Note* n, char* sortie, size_t taille) {
   sortie[l] = 0;
 }
 
+// État propre au téléphone (comme rappelVu) : « maj » ne bouge pas, l'ordre de la liste non plus.
+bool epinglerNote(const char* id, bool oui) {
+  const int i = trouverNote(id);
+  if (i < 0) return false;
+  if (s_notes[i].epinglee == oui) return true;
+  s_notes[i].epinglee = oui;
+  return sauverNotes();
+}
+
+int notesEpinglees(int* indices, int max) {
+  int n = 0;
+  for (int i = 0; i < s_nbN && n < max; i++) {
+    if (s_notes[i].epinglee) indices[n++] = i;
+  }
+  return n;
+}
+
 // --- Divers ----------------------------------------------------------------
 int nbTraces() { return s_nbTr; }
 
@@ -778,6 +839,8 @@ void exporter(Print& sortie) {
       o["repetition"] = REPETITIONS[s_taches[i].repetition <= REP_JOURS_OUVRES ? s_taches[i].repetition : 0];
     }
     if (s_taches[i].rappel) o["rappel"] = true;
+    if (s_taches[i].description[0]) o["desc"] = (const char*)s_taches[i].description;
+    if (s_taches[i].joursSemaine) o["jours"] = s_taches[i].joursSemaine;   // bits 0..6 = lundi..dimanche
     o["maj"] = s_taches[i].maj;
   }
   JsonArray na = doc["notes"].to<JsonArray>();
@@ -786,6 +849,7 @@ void exporter(Print& sortie) {
     o["id"] = (const char*)s_notes[i].id;
     o["texte"] = (const char*)s_notes[i].texte;
     o["maj"] = s_notes[i].maj;
+    if (s_notes[i].epinglee) o["epingle"] = true;
   }
   serializeJsonPretty(doc, sortie);
   sortie.println();

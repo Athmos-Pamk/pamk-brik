@@ -144,10 +144,10 @@ sur **RST**, relâcher RST, puis relâcher BOOT ; téléverser ; appuyer sur RST
 
 **Pour l'instant, pas de boutons poussoirs** (`BOUTONS_PRESENTS = false` dans `config.h`) : tout
 se fait au tactile. La veille se lance seule (ou Réglages → Veille et batterie → Mettre en
-veille) et **se réveille au toucher** (veille légère : le tactile reste allumé). Après
-« Sommeil profond » heures sans contact (4 h par défaut), le téléphone passe en sommeil
-profond pour économiser la batterie : il se réveille alors avec le petit bouton
-`SENSOR_VN` de la carte. « Éteindre » : rallumer avec le bouton RST de la carte.
+veille) et **se réveille au toucher** (veille légère : le tactile reste allumé). Option
+« Sommeil profond » après N heures (jamais par défaut) : il faudrait alors le petit bouton
+`SENSOR_VN` de la carte pour réveiller. « Éteindre » (Réglages → Veille et batterie) :
+rallumer avec le bouton RST de la carte.
 **Mode nuit** (23 h - 7 h, par défaut) : l'heure de l'écran de veille ne bouge plus et le
 Wi-Fi ne se met pas à l'heure tout seul.
 
@@ -218,6 +218,23 @@ Pendant le débogage : la veille légère se coupe toute seule quand un ordinate
 branché en USB, et la veille automatique aussi (réglable : Réglages → Veille et batterie).
 
 ## 7. À tester en premier sur la vraie carte
+
+### Ajouts du 01/11/2026 (idées reprises de FolloUp, sans son code : il est sous GPL-3.0)
+
+0. **Nouvelle tâche** : « + » demande d'abord le nom, puis la fiche s'ouvre en mode création
+   (titre « Nouvelle tâche », boutons Annuler / Ajouter, plus de « Supprimer » ni de dates).
+1. **Notes épinglées** : ouvrir une note, bouton « Épingler » en bas à gauche (au centre
+   entre les flèches si la note fait plusieurs pages) ; elle passe en tête de la liste et
+   s'affiche en post-it (titre + 3 lignes) sur l'écran de veille, avec « +2 » s'il y en a
+   d'autres. Les tâches de la veille se décalent dessous (jusqu'à y = 890).
+2. **Notes par jour** : titres « AUJOURD'HUI », « HIER », « LUN. 27 OCT. » ; l'heure à droite.
+3. **Accueil** : « 2/5 » à côté d'« AUJOURD'HUI » et barre noire sur le trait du dessus
+   (compte les tâches en retard, du jour et sans date ; pas celles prévues un autre jour) ;
+   « Tout est fait pour aujourd'hui ! » seulement quand il n'en reste plus aucune.
+4. **Batterie en charge** : le pourcentage monte au plus de 30 %/h (tension corrigée de
+   120 mV) et ne retombe plus d'un coup au débranchement. Chargeur mural deviné au saut de
+   tension (icône de charge). Réglages dans `energie.cpp` (`CHARGE_CHUTE_MV`, `MONTEE_PM_H`…).
+5. **Veille** : pas de veille automatique pendant le téléchargement de l'agenda.
 
 ### Version 0.2 (28/10/2026)
 
@@ -320,8 +337,8 @@ qu'au nettoyage demandé.
 
 | Mode (Réglages → Écran → Mise à jour) | Ce que font les pixels changés | Passes du pilote |
 |---|---|---|
-| **pixel par pixel** (défaut) | blanc → nouvelle valeur : dessinés directement ; les autres sont d'abord nettoyés (poussés au noir puis au blanc, eux seuls), puis dessinés | 1 à 3 |
-| **douce** | vont directement de l'ancien gris au nouveau, aucun clignotement (plus de traces possibles) | 1 à 2 |
+| **pixel par pixel** (défaut) | ce qui change passe **au blanc**, puis la nouvelle image est dessinée. Changement de page : **toute** la zone qui change est effacée (plus de pixels noirs communs aux deux pages qui restent seuls). Petit changement : la lettre ou la forme touchée entière. Pas de flash noir (`MAJ_NETTOYAGE_NOIR`). Les pixels redessinés en noir reçoivent 3 poussées de finition : autant de noir que de blanc pour la dalle | 2 à 4 |
+| **sans clignotement** | vont directement de l'ancien gris au nouveau, puis finition vers le noir ou le blanc voulu ; les pixels communs aux deux images restent affichés pendant la transition | 1 à 3 |
 
 - Taper du texte à la fin ou cocher une case : 1 seule passe, rien ne clignote.
 - Décocher, effacer : les pixels concernés seuls passent au blanc.
@@ -348,8 +365,11 @@ gris sans clignoter.
 - au premier affichage après un démarrage à froid (contenu de la dalle inconnu) ;
 - sur demande : Réglages → Écran → Nettoyer l'écran (séquence plus longue) ou `rafraichir` ;
 - selon **Réglages → Écran → Image complète auto** : « auto » (**défaut**) = quand l'écran a
-  beaucoup servi, au moment d'un changement de page ; ou « jamais », « à la veille »,
-  « toutes les 50 » mises à jour.
+  beaucoup servi, **à la mise en veille** (on ne regarde plus, le flash ne gêne pas) ; ou
+  « jamais », « à la veille » (à chaque fois), « toutes les 50 » mises à jour.
+
+Ne jamais pousser en boucle tout le fond vers le blanc (essai du 29/10, retiré) : une
+poussée toujours dans le même sens accumule une charge dans la dalle (traces, usure).
 
 Au réveil, il n'y a pas non plus d'image complète : l'écran de veille (ou « Éteint ») est
 mémorisé en mémoire RTC avant le sommeil (`ecrans.cpp`), redessiné à l'identique au réveil,

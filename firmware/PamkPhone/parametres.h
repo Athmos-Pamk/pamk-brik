@@ -28,6 +28,7 @@ struct Parametres {
   bool ecoNuit;              // de 23 h à 7 h : heure de la veille figée, pas de Wi-Fi auto
   uint8_t sommeilApresH;     // veille sans toucher pendant N heures -> sommeil profond (0 = jamais)
   bool assistantFait;        // premier démarrage guidé terminé
+  bool nePasDeranger;        // mode Ne pas déranger (coupe alertes/rappels visuels)
   char icalUrl[256];         // adresse iCal secrète de l'agenda (vide = pas d'agenda). Secret :
                              // jamais dans le journal série.
 };

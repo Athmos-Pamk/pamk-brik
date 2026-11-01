@@ -1,5 +1,5 @@
-// Notes : liste (la plus récente d'abord), lecture page par page, écriture au clavier.
-// La première ligne d'une note lui sert de titre.
+// Notes : liste (épinglées en tête, puis la plus récente d'abord, regroupées par jour),
+// lecture page par page, écriture au clavier. La première ligne d'une note lui sert de titre.
 #include "app.h"
 #include "systeme.h"
 #include "ui.h"
@@ -20,6 +20,41 @@ void dateCourte(uint32_t utc, char* b, size_t n) {
     Horloge::decomposer(d, a, m, j);
     snprintf(b, n, "%d %s", j, Horloge::nomMoisCourt(m));
   }
+}
+
+// Date locale (AAAAMMJJ) d'une modification, 0 si l'heure n'était pas réglée.
+int dateNote(uint32_t utc) {
+  if (utc < 1600000000UL) return 0;
+  struct tm t;
+  Horloge::localeDe(utc, t);
+  return Horloge::dateDe(t);
+}
+
+void heureNote(uint32_t utc, char* b, size_t n) {
+  b[0] = 0;
+  if (utc < 1600000000UL) return;
+  struct tm t;
+  Horloge::localeDe(utc, t);
+  Horloge::texteHeure(b, n, t);
+}
+
+// Majuscules UTF-8 pour les titres de groupe en police pixel (é -> É, û -> Û...).
+void majuscules(char* s) {
+  for (uint8_t* p = (uint8_t*)s; *p; p++) {
+    if (*p < 0x80) {
+      *p = (uint8_t)toupper(*p);
+    } else if (*p == 0xC3 && p[1] >= 0xA0 && p[1] <= 0xBE && p[1] != 0xB7) {
+      p[1] -= 0x20;
+      p++;
+    }
+  }
+}
+
+// Titre d'un groupe de jour : « AUJOURD'HUI », « HIER », « LUN. 27 OCT. ».
+void texteJour(int date, char* b, size_t n) {
+  if (date == 0) snprintf(b, n, "sans date");
+  else Horloge::texteDateRelative(b, n, date);
+  majuscules(b);
 }
 
 void rappelNouvelle(bool ok, const char* texte, void* ctx) {
@@ -49,38 +84,40 @@ Rang rang() {
   if (policeGras() == F_GRAS) return {40, 74, LIGNE_H};   // titre 28 px
   return {48, 86, 104};                                     // titre 36 px
 }
-int parPage() { return (PIED_Y - LISTE_Y) / rang().h; }   // 7
+
+// Une ligne de la liste (01/11/2026, idée reprise de FolloUp) : un titre de groupe
+// (note = -1) ou une note (index Stockage). date : AAAAMMJJ du groupe, -1 = épinglées,
+// 0 = sans date.
+struct Entree {
+  int16_t note;
+  int date;
+};
+const int H_GROUPE = 48;
+const int ENTREES_MAX = 2 * NOTES_MAX + 1;
 
 class AppNotes : public App {
  public:
   IdApp id() const override { return APP_NOTES; }
 
-  void entrer() override { m_pages.regler(Stockage::nbNotes(), parPage()); }
+  void entrer() override { construire(); }
 
   void dessiner() override {
     UI::barreTitre("Notes", true, "+", L_NOUVELLE);
-    const int n = Stockage::nbNotes();
-    const Rang r = rang();
-    const int parPg = parPage();
-    m_pages.regler(n, parPg);
-    if (n == 0) UI::messageVide(LISTE_Y + 120, "Aucune note", "Touche + pour en écrire une.");
-    for (int i = 0; i < parPg; i++) {
-      const int k = m_pages.page * parPg + i;
-      if (k >= n) break;
-      const Note* note = Stockage::note(k);
-      const int y = LISTE_Y + i * r.h;
-      char titre[96], date[24];
-      Stockage::titreNote(note, titre, sizeof(titre));
-      dateCourte(note->maj, date, sizeof(date));
-      const int ld = Dessin::largeur(F_PETITE, date);
-      Dessin::texteTronque(policeGras(), MARGE, y + r.titre, ECRAN_L - 2 * MARGE - ld - 16, titre[0] ? titre : "(sans titre)", NOIR);
-      Dessin::texteDroite(F_PETITE, ECRAN_L - MARGE, y + r.titre, date, GRIS_FONCE);
-      // Aperçu : la suite du texte, sur une ligne
-      char apercu[96];
-      apercuNote(note, apercu, sizeof(apercu));
-      if (apercu[0]) Dessin::texteTronque(F_PETITE, MARGE, y + r.apercu, ECRAN_L - 2 * MARGE, apercu, GRIS_FONCE);
-      UI::separateur(y + r.h - 2);
-      UI::zone(boite(0, y, ECRAN_L, r.h), L_OUVRIR, k);
+    construire();
+    if (Stockage::nbNotes() == 0) UI::messageVide(LISTE_Y + 120, "Aucune note", "Touche + pour en écrire une.");
+    int y = LISTE_Y;
+    for (int i = m_debut[m_pages.page]; i < m_debut[m_pages.page + 1]; i++) {
+      const Entree& e = m_e[i];
+      if (e.note < 0) {
+        char t[40];
+        if (e.date == -1) snprintf(t, sizeof(t), "ÉPINGLÉES");
+        else texteJour(e.date, t, sizeof(t));
+        UI::etiquette(MARGE, y + 36, t);
+        y += H_GROUPE;
+        continue;
+      }
+      ligneNote(y, e.note, e.date == -1);
+      y += rang().h;
     }
     UI::pagination(m_pages);
   }
@@ -123,6 +160,70 @@ class AppNotes : public App {
  private:
   Pages m_pages = {0, 1};
   char m_aSupprimer[ID_LONGUEUR + 1] = "";
+  Entree m_e[ENTREES_MAX];
+  int m_nbE = 0;
+  int m_debut[ENTREES_MAX + 1];   // première entrée de chaque page (+ la fin)
+
+  // Épinglées en tête, puis les autres (la plus récente d'abord) avec un titre à chaque
+  // changement de jour. Pages remplies jusqu'au pied ; un titre de groupe ne reste jamais
+  // seul en bas d'une page.
+  void construire() {
+    m_nbE = 0;
+    int ep[NOTES_MAX];
+    const int nEp = Stockage::notesEpinglees(ep, NOTES_MAX);
+    if (nEp > 0) {
+      m_e[m_nbE++] = {-1, -1};
+      for (int i = 0; i < nEp; i++) m_e[m_nbE++] = {(int16_t)ep[i], -1};
+    }
+    int groupe = -2;
+    const int n = Stockage::nbNotes();
+    for (int k = 0; k < n && m_nbE + 2 <= ENTREES_MAX; k++) {
+      const Note* no = Stockage::note(k);
+      if (no->epinglee) continue;
+      const int d = dateNote(no->maj);
+      if (d != groupe) {
+        m_e[m_nbE++] = {-1, d};
+        groupe = d;
+      }
+      m_e[m_nbE++] = {(int16_t)k, d};
+    }
+    const int dispo = PIED_Y - LISTE_Y, hNote = rang().h;
+    int nbPages = 0, h = 0;
+    for (int i = 0; i < m_nbE; i++) {
+      const bool titre = m_e[i].note < 0;
+      const int besoin = titre ? H_GROUPE + hNote : hNote;
+      if (i == 0 || h + besoin > dispo) {
+        m_debut[nbPages++] = i;
+        h = 0;
+      }
+      h += titre ? H_GROUPE : hNote;
+    }
+    if (nbPages == 0) m_debut[nbPages++] = 0;
+    m_debut[nbPages] = m_nbE;
+    m_pages.nb = nbPages;
+    if (m_pages.page >= m_pages.nb) m_pages.page = m_pages.nb - 1;
+    if (m_pages.page < 0) m_pages.page = 0;
+  }
+
+  // Titre, aperçu et, à droite, la date (épinglées) ou l'heure (le jour est dans le groupe).
+  void ligneNote(int y, int k, bool dateComplete) {
+    const Note* note = Stockage::note(k);
+    if (!note) return;
+    const Rang r = rang();
+    char titre[96], date[24];
+    Stockage::titreNote(note, titre, sizeof(titre));
+    if (dateComplete) dateCourte(note->maj, date, sizeof(date));
+    else heureNote(note->maj, date, sizeof(date));
+    const int ld = Dessin::largeur(F_PETITE, date);
+    Dessin::texteTronque(policeGras(), MARGE, y + r.titre, ECRAN_L - 2 * MARGE - ld - 16, titre[0] ? titre : "(sans titre)", NOIR);
+    Dessin::texteDroite(F_PETITE, ECRAN_L - MARGE, y + r.titre, date, GRIS_FONCE);
+    // Aperçu : la suite du texte, sur une ligne
+    char apercu[96];
+    apercuNote(note, apercu, sizeof(apercu));
+    if (apercu[0]) Dessin::texteTronque(F_PETITE, MARGE, y + r.apercu, ECRAN_L - 2 * MARGE, apercu, GRIS_FONCE);
+    UI::separateur(y + r.h - 2);
+    UI::zone(boite(0, y, ECRAN_L, r.h), L_OUVRIR, k);
+  }
 
   static void apercuNote(const Note* n, char* b, size_t taille) {
     b[0] = 0;
@@ -154,7 +255,7 @@ AppNotes g_notes;
 // ---------------------------------------------------------------------------
 //  Lecture d'une note
 // ---------------------------------------------------------------------------
-enum CodeVue { V_MODIFIER, V_SUPPRIMER, V_TEXTE };
+enum CodeVue { V_MODIFIER, V_SUPPRIMER, V_TEXTE, V_EPINGLER };
 const int TEXTE_Y = CONTENU_Y + 16;
 const int LIGNES_MAX = NOTE_TEXTE_MAX + 1;
 
@@ -184,13 +285,21 @@ class AppNote : public App {
     }
     char titre[96];
     Stockage::titreNote(n, titre, sizeof(titre));
-    UI::barreTitre(titre[0] ? titre : "Note", true, "Modifier", V_MODIFIER);
     if (!m_lignes) m_lignes = (LigneTexte*)ps_malloc(sizeof(LigneTexte) * LIGNES_MAX);
-    if (!m_lignes) return;
+    if (!m_lignes) {
+      UI::barreTitre(titre[0] ? titre : "Note", true, "Modifier", V_MODIFIER);
+      return;
+    }
     const GFXfont* police = policeTexte();
     const int pas = interligne(), parPg = lignesPage(), base = premiereBase();
     const int nb = Dessin::couperLignes(police, n->texte, ECRAN_L - 2 * MARGE, m_lignes, LIGNES_MAX);
     m_pages.regler(nb, parPg);
+    // Plusieurs pages : le numéro passe dans le titre, le milieu du pied sert à épingler.
+    if (m_pages.nb > 1) {
+      const size_t l = strlen(titre);
+      snprintf(titre + l, sizeof(titre) - l, " (%d/%d)", m_pages.page + 1, m_pages.nb);
+    }
+    UI::barreTitre(titre[0] ? titre : "Note", true, "Modifier", V_MODIFIER);
     UI::zone(boite(0, TEXTE_Y, ECRAN_L, PIED_Y - TEXTE_Y), V_TEXTE);   // appui long = supprimer
     for (int i = 0; i < parPg; i++) {
       const int k = m_pages.page * parPg + i;
@@ -198,12 +307,18 @@ class AppNote : public App {
       Dessin::texteN(police, MARGE, base + i * pas, n->texte + m_lignes[k].debut,
                      m_lignes[k].fin - m_lignes[k].debut, NOIR);
     }
-    // Pied : pages et suppression
+    // Pied : épingler (01/11/2026), puis pages ou suppression (sinon : appui long sur le texte).
+    // Épinglée : affichée en post-it sur l'écran de veille.
     const int y = PIED_Y + 12;
+    const char* ep = n->epinglee ? "Épinglée" : "Épingler";
+    const StyleBouton sep = n->epinglee ? STYLE_PLEIN : STYLE_CONTOUR;
     if (m_pages.nb > 1) {
-      UI::pagination(m_pages);   // flèches à gauche et à droite, numéro au centre
+      UI::pagination(m_pages, false);   // flèches à gauche et à droite, sans le numéro
+      UI::bouton(boite(MARGE + 132, y, ECRAN_L - 2 * MARGE - 264, 64), ep, V_EPINGLER, 0, sep);
     } else {
-      UI::bouton(boite(ECRAN_L / 2 - 120, y, 240, 64), "Supprimer", V_SUPPRIMER, 0, STYLE_DISCRET);
+      const int l = (ECRAN_L - 2 * MARGE - 16) / 2;
+      UI::bouton(boite(MARGE, y, l, 64), ep, V_EPINGLER, 0, sep);
+      UI::bouton(boite(MARGE + l + 16, y, l, 64), "Supprimer", V_SUPPRIMER, 0, STYLE_DISCRET);
     }
   }
 
@@ -218,6 +333,14 @@ class AppNote : public App {
       case V_SUPPRIMER:
         demanderSuppression();
         break;
+      case V_EPINGLER: {
+        const bool oui = !n->epinglee;
+        if (Stockage::epinglerNote(m_id, oui)) {
+          Systeme::notifier(oui ? "Épinglée sur l'écran de veille" : "Note désépinglée");
+        }
+        Systeme::redessiner();
+        break;
+      }
       case CODE_PAGE_PREC: if (m_pages.precedente()) Systeme::redessiner(); break;
       case CODE_PAGE_SUIV: if (m_pages.suivante()) Systeme::redessiner(); break;
       default: break;

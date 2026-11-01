@@ -27,9 +27,15 @@ struct Memo {
   char rdv[64];                // prochain rendez-vous de l'agenda ("" = aucun), 28/10/2026
   uint8_t nbTaches;
   char taches[4][TACHE_TITRE_MAX + 1];
+  // 01/11/2026 : note épinglée (la plus récente) en post-it, idée reprise de FolloUp
+  uint8_t nbEpinglees;
+  char epTitre[64];
+  char epLignes[3][72];        // début du texte, déjà coupé à la largeur du post-it
 };
 
-static const uint32_t MAGIE = 0x4D454D32;   // "MEM2" (rendez-vous ajouté au mémo)
+static const uint32_t MAGIE = 0x4D454D33;   // "MEM3" (note épinglée ajoutée au mémo)
+static const int POSTIT_TEXTE_L = ECRAN_L - 2 * MARGE - 40;   // largeur du texte dans le post-it
+static const int Y_FIN_VEILLE = 890;   // rien en dessous : la consigne de réveil est à 932
 static RTC_DATA_ATTR Memo r_memo;
 
 void demarrage(const char* message) {
@@ -84,10 +90,27 @@ static void dessinerVeille(const Memo& m) {
     Dessin::texteTronque(F_GRAS, MARGE + 30, yy, ECRAN_L - 2 * MARGE - 30, m.rdv, NOIR);
     yy += 64;
   }
-  if (m.nbTaches > 0) {
+  if (m.nbEpinglees > 0) {   // post-it : cadre à coins coupés, titre, début du texte
+    int nl = 0;
+    while (nl < 3 && m.epLignes[nl][0]) nl++;
+    const int haut = yy - 34, h = 62 + nl * 34;
+    Dessin::chanfrein(MARGE, haut, ECRAN_L - 2 * MARGE, h, CHANFREIN, TRAIT, NOIR);
+    Dessin::rectPlein(MARGE + 20, haut + 26, 10, 10, NOIR);   // la punaise
+    int lTitre = POSTIT_TEXTE_L - 20;
+    if (m.nbEpinglees > 1) {   // « +2 » : d'autres notes épinglées, à voir dans Notes
+      char autres[8];
+      snprintf(autres, sizeof(autres), "+%u", (unsigned)(m.nbEpinglees - 1));
+      Dessin::texteDroite(F_PETITE, ECRAN_L - MARGE - 20, haut + 40, autres, GRIS_FONCE);
+      lTitre -= Dessin::largeur(F_PETITE, autres) + 12;
+    }
+    Dessin::texteTronque(F_GRAS, MARGE + 40, haut + 42, lTitre, m.epTitre[0] ? m.epTitre : "(sans titre)", NOIR);
+    for (int i = 0; i < nl; i++) Dessin::texte(F_PETITE, MARGE + 20, haut + 42 + 34 * (i + 1), m.epLignes[i], GRIS_FONCE);
+    yy = haut + h + 52;
+  }
+  if (m.nbTaches > 0 && yy + 46 <= Y_FIN_VEILLE) {
     Dessin::texte(F_PIXEL, MARGE, yy, "À FAIRE", GRIS_FONCE);
     yy += 46;
-    for (int i = 0; i < m.nbTaches && i < 4; i++) {
+    for (int i = 0; i < m.nbTaches && i < 4 && yy <= Y_FIN_VEILLE; i++) {
       Dessin::chanfrein(MARGE, yy - 22, 24, 24, 4, 2, NOIR);
       Dessin::texteTronque(F_TEXTE, MARGE + 40, yy, ECRAN_L - 2 * MARGE - 40, m.taches[i], NOIR);
       yy += 46;
@@ -165,6 +188,30 @@ void veille(bool profonde) {
   const int n = Stockage::listeTaches(TACHES_A_FAIRE, indices, 4);
   m.nbTaches = (uint8_t)n;
   for (int i = 0; i < n; i++) copier(m.taches[i], sizeof(m.taches[i]), Stockage::tache(indices[i])->titre);
+  // Note épinglée : titre, puis la suite du texte coupée en 3 lignes au plus (gardées telles
+  // quelles dans le mémo, pour redessiner le même écran après un sommeil profond).
+  int ep[NOTES_MAX];
+  const int nEp = Stockage::notesEpinglees(ep, NOTES_MAX);
+  m.nbEpinglees = (uint8_t)mini(nEp, 255);
+  if (nEp > 0) {
+    const Note* note = Stockage::note(ep[0]);
+    Stockage::titreNote(note, m.epTitre, sizeof(m.epTitre));
+    const char* suite = note && note->texte ? note->texte : "";
+    while (*suite == ' ' || *suite == '\n') suite++;
+    suite = strchr(suite, '\n');   // saute la ligne de titre
+    if (suite) {
+      while (*suite == ' ' || *suite == '\n') suite++;
+      LigneTexte l[3];
+      const int nl = Dessin::couperLignes(F_PETITE, suite, POSTIT_TEXTE_L, l, 3);
+      for (int i = 0; i < nl && i < 3; i++) {
+        char ligne[128];   // copier() coupe ensuite à 71 octets sans couper un caractère
+        const int lg = mini(l[i].fin - l[i].debut, (int)sizeof(ligne) - 1);
+        memcpy(ligne, suite + l[i].debut, lg);
+        ligne[lg] = 0;
+        copier(m.epLignes[i], sizeof(m.epLignes[i]), ligne);
+      }
+    }
+  }
   dessinerVeille(m);
 }
 

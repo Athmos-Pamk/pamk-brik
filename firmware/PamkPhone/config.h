@@ -51,8 +51,11 @@ constexpr bool TACTILE_MIROIR_X    = false;
 constexpr bool TACTILE_MIROIR_Y    = true;
 constexpr int  TACTILE_PERIODE_MS  = 20;     // lecture du tactile
 constexpr int  TACTILE_APPUI_LONG_MS = 650;
-constexpr int  TACTILE_GLISSER_PX  = 80;
-constexpr int  TACTILE_TOLERANCE_PX = 36;    // déplacement max pour un « toucher »
+constexpr int  TACTILE_GLISSER_PX  = 40;
+constexpr int  TACTILE_TOLERANCE_PX = 20;    // déplacement max pour un appui long
+// Volet de réglages rapides : glisser vers le bas en partant de moins de VOLET_DEPART_MAX_Y
+// (barre d'état et haut de la barre de titre), comme sur un téléphone.
+constexpr int  VOLET_DEPART_MAX_Y  = 90;
 
 // ---------------------------------------------------------------------------
 //  Boutons
@@ -82,7 +85,15 @@ constexpr uint8_t ORIENTATION_DEFAUT = 0;
 // MAJ_POUSSEES trames de DUREE_CYCLE_US dans chaque sens = un cycle de epd_clear()),
 // MAJ_CYCLES_PIXELS fois, puis tous reçoivent leur nouvelle valeur.
 constexpr int MAJ_CYCLES_PIXELS = 1;         // 2 si des traces restent (plus lent)
-constexpr int MAJ_POUSSEES = 4;
+constexpr int MAJ_POUSSEES = 5;              // 5 poussées (250 µs) dans chaque sens pour éliminer les résidus
+// Effacement d'un pixel : directement au blanc (défaut, 29/10/2026 : pas de flash noir).
+// true = d'abord au noir puis au blanc (efface mieux les traces, mais l'ancien contenu
+// devient noir un instant).
+constexpr bool MAJ_NETTOYAGE_NOIR = false;
+// Poussées de finition (voir preparerFinition() dans ecran.cpp), sur les seuls pixels qui
+// changent : en mode pixels, ceux redessinés en noir (autant de noir que de blanc pour la
+// dalle) ; en mode doux, vers le noir et le blanc. 0 = aucune.
+constexpr int MAJ_FINITION_TRAMES = 3;       // 3 x 50 µs
 constexpr bool MAJ_NETTOYAGE_FORT = true;    // false = ancien nettoyage (epd_draw_image), en secours
 constexpr int MAJ_GROUPES_MAX = 3;           // groupes de colonnes traités séparément
 // Deux groupes de colonnes plus proches que ça sont traités ensemble : chaque passe coûte

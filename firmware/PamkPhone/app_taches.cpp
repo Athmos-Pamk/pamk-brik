@@ -36,7 +36,51 @@ void basculer(const Tache* t) {
 // ---------------------------------------------------------------------------
 //  Liste
 // ---------------------------------------------------------------------------
-enum CodeListe { L_NOUVELLE, L_ONGLET, L_COCHER, L_OUVRIR };
+enum CodeListe { L_NOUVELLE, L_ONGLET, L_COCHER, L_OUVRIR, L_RECHERCHER, L_EFFACER_RECHERCHE };
+
+static int plierCar(const char*& s, char* sortie) {
+  static const char BASE[] = "aaaaaa*ceeeeiiiidnooooo=ouuuuyt?";
+  const uint32_t cp = Dessin::utf8Lire(s);
+  if (cp >= 'A' && cp <= 'Z') { sortie[0] = (char)(cp + 32); return 1; }
+  if (cp < 0x80) { sortie[0] = (char)cp; return 1; }
+  char a = 0, b = 0;
+  if (cp >= 0xC0 && cp <= 0xFF) {
+    const char c = BASE[cp & 0x1F];
+    if (c == '*') { a = 'a'; b = 'e'; }
+    else if (c == '?') { if (cp == 0xDF) { a = 's'; b = 's'; } else { a = 'y'; } }
+    else if (c != '=') a = c;
+  } else if (cp == 0x152 || cp == 0x153) { a = 'o'; b = 'e'; }
+  else if (cp == 0x178) { a = 'y'; }
+  else if (cp == 0x2018 || cp == 0x2019) { a = '\''; }
+  else if (cp == 0x2013 || cp == 0x2014 || cp == 0x2212) { a = '-'; }
+  else if (cp == 0xA0) { a = ' '; }
+  if (a) {
+    sortie[0] = a;
+    if (!b) return 1;
+    sortie[1] = b;
+    return 2;
+  }
+  sortie[0] = '?';
+  return 1;
+}
+
+static void plierChaine(const char* src, char* dst, size_t n) {
+  size_t j = 0;
+  const char* p = src;
+  while (*p && j + 4 < n) {
+    char b[4];
+    const int k = plierCar(p, b);
+    for (int i = 0; i < k && j + 1 < n; i++) dst[j++] = b[i];
+  }
+  dst[j] = 0;
+}
+
+static bool titreCorrespond(const char* titre, const char* requeteRepliee) {
+  if (!requeteRepliee || !*requeteRepliee) return true;
+  char titrePlie[TACHE_TITRE_MAX * 2];
+  plierChaine(titre, titrePlie, sizeof(titrePlie));
+  return strstr(titrePlie, requeteRepliee) != nullptr;
+}
 
 const int ONGLETS_Y = CONTENU_Y + 10;
 const int ONGLETS_H = 56;
@@ -72,7 +116,11 @@ void ligneTache(int y, int index, int codeCocher, int codeOuvrir) {
     snprintf(sous + n, sizeof(sous) - n, "%s%s", n ? " · " : "", h);
   }
   int xm = x;
-  if (sous[0]) xm = Dessin::texte(F_PETITE, x, y + 76, sous, retard ? NOIR : GRIS_FONCE) + 12;
+  if (sous[0]) {
+    xm = Dessin::texte(F_PETITE, x, y + 76, sous, retard ? NOIR : GRIS_FONCE) + 12;
+  } else if (t->description[0]) {
+    xm = Dessin::texteTronque(F_PETITE, x, y + 76, ECRAN_L - MARGE - x - 30, t->description, GRIS_FONCE) + 12;
+  }
   if (t->repetition != REP_AUCUNE) {
     Dessin::motif(MOTIF_REPETITION, 8, xm, y + 60, 2, GRIS_FONCE);
     xm += 26;
@@ -85,7 +133,12 @@ void ligneTache(int y, int index, int codeCocher, int codeOuvrir) {
 void rappelNouvelle(bool ok, const char* texte, void* ctx) {
   const int echeance = (int)(intptr_t)ctx;
   if (!ok || !texte || !*texte) return;
-  if (!Stockage::ajouterTache(texte, echeance)) Systeme::notifier("Impossible d'ajouter la tâche");
+  const Tache* t = Stockage::ajouterTache(texte, echeance);
+  if (!t) {
+    Systeme::notifier("Impossible d'ajouter la tâche");
+  } else {
+    Systeme::ouvrir(appTache(t->id, true));   // fiche en mode création (Annuler / Ajouter)
+  }
 }
 
 class AppTaches : public App {
@@ -96,6 +149,19 @@ class AppTaches : public App {
 
   void dessiner() override {
     UI::barreTitre("Tâches", true, "+", L_NOUVELLE);
+
+    // Bouton Loupe (Recherche) à gauche du bouton +
+    const Boite bRech = boite(ECRAN_L - MARGE - 68 - 12 - 68, BARRE_ETAT_H + 10, 68, 64);
+    const bool rechActive = m_recherchePliee[0] != 0;
+    if (rechActive) {
+      Dessin::chanfreinPlein(bRech.x, bRech.y, bRech.l, bRech.h, CHANFREIN, NOIR);
+      Dessin::icone(ICONE_RECHERCHE, bRech.x + (bRech.l - 60) / 2 + 18, bRech.y + 14, 3, BLANC);
+    } else {
+      Dessin::chanfrein(bRech.x, bRech.y, bRech.l, bRech.h, CHANFREIN, TRAIT, NOIR);
+      Dessin::icone(ICONE_RECHERCHE, bRech.x + (bRech.l - 60) / 2 + 18, bRech.y + 14, 3, NOIR);
+    }
+    UI::zone(bRech, L_RECHERCHER);
+
     // Onglets
     char a[32], f[32];
     snprintf(a, sizeof(a), "À faire (%d)", Stockage::nbTachesAFaire());
@@ -105,11 +171,25 @@ class AppTaches : public App {
                m_filtre == TACHES_A_FAIRE ? STYLE_PLEIN : STYLE_DISCRET);
     UI::bouton(boite(MARGE + lo + 12, ONGLETS_Y, lo, ONGLETS_H), f, L_ONGLET, 1,
                m_filtre == TACHES_FAITES ? STYLE_PLEIN : STYLE_DISCRET);
+
+    // Bandeau d'indication si filtre de recherche actif
+    if (rechActive) {
+      const int yBandeau = ONGLETS_Y + ONGLETS_H + 6;
+      char txtFiltre[64];
+      snprintf(txtFiltre, sizeof(txtFiltre), "Recherche : « %s »", m_recherche);
+      Dessin::texte(F_PETITE, MARGE, yBandeau + 22, txtFiltre, NOIR);
+      const Boite bEff = boite(ECRAN_L - MARGE - 100, yBandeau + 2, 100, 32);
+      Dessin::chanfrein(bEff.x, bEff.y, bEff.l, bEff.h, 6, TRAIT, GRIS_FONCE);
+      Dessin::texteCentre(F_PETITE, bEff.x + bEff.l / 2, bEff.y + 22, "Effacer X", NOIR);
+      UI::zone(bEff, L_EFFACER_RECHERCHE);
+    }
+
     // Liste
     const int n = compter();
     m_pages.regler(n, PAR_PAGE);
     if (n == 0) {
-      if (m_filtre == TACHES_A_FAIRE) UI::messageVide(LISTE_Y + 90, "Aucune tâche à faire", "Touche + pour en ajouter une.");
+      if (rechActive) UI::messageVide(LISTE_Y + 90, "Aucune tâche trouvée", "Touche « Effacer » pour réafficher la liste.");
+      else if (m_filtre == TACHES_A_FAIRE) UI::messageVide(LISTE_Y + 90, "Aucune tâche à faire", "Touche + pour en ajouter une.");
       else UI::messageVide(LISTE_Y + 90, "Rien de fini pour l'instant", "Coche une tâche quand c'est fait.");
     }
     for (int i = 0; i < PAR_PAGE; i++) {
@@ -122,8 +202,17 @@ class AppTaches : public App {
 
   void action(int code, int arg) override {
     switch (code) {
-      case L_NOUVELLE:
-        Systeme::ouvrir(appClavier("Nouvelle tâche", "", TACHE_TITRE_MAX, SAISIE_LIGNE, rappelNouvelle, (void*)0));
+      case L_NOUVELLE:   // d'abord le nom, puis la fiche en mode création
+        ajouterTacheAuClavier(0);
+        break;
+      case L_RECHERCHER:
+        Systeme::ouvrir(appClavier("Rechercher une tâche", m_recherche, 40, SAISIE_LIGNE, rappelRecherche, this));
+        break;
+      case L_EFFACER_RECHERCHE:
+        m_recherche[0] = 0;
+        m_recherchePliee[0] = 0;
+        m_pages.page = 0;
+        Systeme::redessiner();
         break;
       case L_ONGLET:
         m_filtre = arg ? TACHES_FAITES : TACHES_A_FAIRE;
@@ -167,8 +256,31 @@ class AppTaches : public App {
   FiltreTaches m_filtre = TACHES_A_FAIRE;
   Pages m_pages = {0, 1};
   char m_aSupprimer[ID_LONGUEUR + 1] = "";
+  char m_recherche[48] = "";
+  char m_recherchePliee[48] = "";
 
-  int compter() { return Stockage::listeTaches(m_filtre, g_indices, TACHES_MAX); }
+  int compter() {
+    const int total = Stockage::listeTaches(m_filtre, g_indices, TACHES_MAX);
+    if (!m_recherchePliee[0]) return total;
+    int retenus = 0;
+    for (int i = 0; i < total; i++) {
+      const Tache* t = Stockage::tache(g_indices[i]);
+      if (t && titreCorrespond(t->titre, m_recherchePliee)) {
+        g_indices[retenus++] = g_indices[i];
+      }
+    }
+    return retenus;
+  }
+
+  static void rappelRecherche(bool ok, const char* texte, void* ctx) {
+    AppTaches* moi = static_cast<AppTaches*>(ctx);
+    if (!ok || !texte) return;
+    strncpy(moi->m_recherche, texte, sizeof(moi->m_recherche) - 1);
+    moi->m_recherche[sizeof(moi->m_recherche) - 1] = 0;
+    plierChaine(moi->m_recherche, moi->m_recherchePliee, sizeof(moi->m_recherchePliee));
+    moi->m_pages.page = 0;
+    Systeme::redessiner();
+  }
 
   static void confirmerSuppression(bool oui, void* ctx) {
     AppTaches* moi = static_cast<AppTaches*>(ctx);
@@ -184,17 +296,21 @@ AppTaches g_taches;
 // De haut en bas : cadre du titre (case à cocher à gauche), échéance (- / + 1 jour, choix
 // rapides), heure (- / + 15 min, choix rapides), répétition, rappel, dates, suppression.
 enum CodeDetail {
-  D_TITRE, D_FAITE, D_ECHEANCE, D_MOINS, D_PLUS, D_SUPPRIMER,
-  D_HEURE, D_HEURE_MOINS, D_HEURE_PLUS, D_REPETER, D_RAPPEL,
+  D_TITRE, D_FAITE, D_DESCRIPTION, D_ECHEANCE, D_MOINS, D_PLUS, D_SUPPRIMER,
+  D_HEURE, D_HEURE_SAISIR, D_HEURE_MOINS_H, D_HEURE_PLUS_H, D_HEURE_MOINS_M, D_HEURE_PLUS_M, D_HEURE_EFFACER,
+  D_REPETER,
+  D_JOUR_0, D_JOUR_1, D_JOUR_2, D_JOUR_3, D_JOUR_4, D_JOUR_5, D_JOUR_6,
+  D_RAPPEL,
+  D_ANNULER, D_AJOUTER,   // fiche d'une tâche qu'on vient de créer (01/11/2026)
 };
 
 const int DETAIL_Y = CONTENU_Y + 12;             // 144 : haut du cadre du titre
-const int VALEUR_H = 60;                          // lignes « Échéance » et « Heure »
-const int RAPIDES_H = 56;                         // rangées de choix rapides
-const int BLOC_H = VALEUR_H + 4 + RAPIDES_H + 16; // 136 : une valeur et ses choix rapides
-const int DATES_H = 62;                           // « Créée le » et « Modifiée le »
+const int VALEUR_H = 54;                          // lignes « Échéance » et « Heure »
+const int RAPIDES_H = 48;                         // rangées de choix rapides
+const int BLOC_H = VALEUR_H + 2 + RAPIDES_H + 10; // une valeur et ses choix rapides
+const int DATES_H = 52;                           // « Créée le » et « Modifiée le »
 const int SUPPRIMER_Y = 860;
-const int SOUS_TITRE_H = 2 * BLOC_H + 84 + 84 + DATES_H;   // 502 : tout ce qui suit le titre
+const int SOUS_TITRE_H = 2 * BLOC_H + 84 + 84 + DATES_H;
 
 const int HEURES_RAPIDES[4] = {-1, 9 * 60, 12 * 60, 18 * 60};
 // Ordre du cycle « Répéter » : du plus fréquent au plus rare.
@@ -205,13 +321,14 @@ class AppTache : public App {
   IdApp id() const override { return APP_TACHE; }
   bool reprendreApresVeille() const override { return false; }
 
-  void choisir(const char* id) {
+  void choisir(const char* id, bool nouvelle) {
     strncpy(m_id, id ? id : "", sizeof(m_id) - 1);
     m_id[sizeof(m_id) - 1] = 0;
+    m_nouvelle = nouvelle;
   }
 
   void dessiner() override {
-    UI::barreTitre("Tâche", true);
+    UI::barreTitre(m_nouvelle ? "Nouvelle tâche" : "Tâche", true);
     const Tache* t = Stockage::tache(Stockage::indexTache(m_id));
     if (!t) {
       UI::messageVide(300, "Tâche introuvable", "Elle a peut-être été supprimée.");
@@ -219,6 +336,24 @@ class AppTache : public App {
     }
     const int auj = Horloge::aujourdhui();
     int y = dessinerTitre(t);
+
+    // Description visible dans son cadre dédié (sur 1 ou 2 lignes)
+    const Boite bDesc = boite(MARGE, y, ECRAN_L - 2 * MARGE, 66);
+    Dessin::chanfrein(bDesc.x, bDesc.y, bDesc.l, bDesc.h, 10, 2, GRIS);
+    if (t->description[0]) {
+      LigneTexte lDesc[2];
+      const int nbL = Dessin::couperLignes(F_TEXTE, t->description, bDesc.l - 32, lDesc, 2);
+      if (nbL <= 1) {
+        Dessin::texteTronque(F_TEXTE, bDesc.x + 16, bDesc.y + 40, bDesc.l - 32, t->description, NOIR);
+      } else {
+        Dessin::texteN(F_TEXTE, bDesc.x + 16, bDesc.y + 28, t->description + lDesc[0].debut, lDesc[0].fin - lDesc[0].debut, NOIR);
+        Dessin::texteTronque(F_TEXTE, bDesc.x + 16, bDesc.y + 54, bDesc.l - 32, t->description + lDesc[1].debut, NOIR);
+      }
+    } else {
+      Dessin::texte(F_TEXTE, bDesc.x + 16, bDesc.y + 41, "Ajouter une description...", GRIS);
+    }
+    UI::zone(bDesc, D_DESCRIPTION);
+    y += 66 + 10;
 
     // Échéance
     etiquetteValeur(y, "Échéance");
@@ -235,33 +370,86 @@ class AppTache : public App {
     else if (t->echeance == auj) choisi = 1;
     else if (t->echeance == Horloge::ajouterJours(auj, 1)) choisi = 2;
     else if (t->echeance == Horloge::ajouterJours(auj, 7)) choisi = 3;
-    choixRapides(y + VALEUR_H + 4, DATES, D_ECHEANCE, choisi);
+    choixRapides(y + VALEUR_H + 2, DATES, D_ECHEANCE, choisi);
     y += BLOC_H;
 
-    // Heure
+    // Heure (toucher l'heure permet de taper directement 7:15, 14h30, etc.)
     etiquetteValeur(y, "Heure");
     if (t->heure >= 0) {
       char h[8];
       texteHeureTache(t->heure, h, sizeof(h));
-      valeurAvecFleches(y, h, D_HEURE_MOINS, D_HEURE_PLUS);
+      // Cadre cliquable pour taper l'heure exacte
+      const int bW = 50, lvW = 160;
+      const int xPlus = ECRAN_L - MARGE - bW;
+      const int xVal = xPlus - 8 - lvW;
+      const int xMoins = xVal - 8 - bW;
+      const int yb = y + (VALEUR_H - bW) / 2;
+      UI::bouton(boite(xMoins, yb, bW, bW), "−1h", D_HEURE_MOINS_H, 0, STYLE_DISCRET, F_PETITE);
+      UI::bouton(boite(xPlus, yb, bW, bW), "+1h", D_HEURE_PLUS_H, 0, STYLE_DISCRET, F_PETITE);
+
+      const Boite bVal = boite(xVal, yb, lvW, bW);
+      Dessin::chanfrein(bVal.x, bVal.y, bVal.l, bVal.h, 8, TRAIT, NOIR);
+      Dessin::texteCentre(F_GRAS, bVal.x + bVal.l / 2, Dessin::baseCentree(F_GRAS, bVal.y, bVal.h), h, NOIR);
+      UI::zone(bVal, D_HEURE_SAISIR);
     } else {
-      valeurAucune(y);
+      const Boite bDef = boite(ECRAN_L - MARGE - 160, y + (VALEUR_H - 44) / 2, 160, 44);
+      Dessin::chanfrein(bDef.x, bDef.y, bDef.l, bDef.h, 8, TRAIT, GRIS);
+      Dessin::texteCentre(F_PETITE, bDef.x + bDef.l / 2, Dessin::baseCentree(F_PETITE, bDef.y, bDef.h), "Régler l'heure", NOIR);
+      UI::zone(bDef, D_HEURE_SAISIR);
     }
-    static const char* const HEURES[4] = {"Aucune", "9:00", "12:00", "18:00"};
-    choisi = -1;
-    for (int i = 0; i < 4; i++) if (t->heure == HEURES_RAPIDES[i]) choisi = i;
-    choixRapides(y + VALEUR_H + 4, HEURES, D_HEURE, choisi);
+
+    // Rangée de réglage fin de l'heure
+    if (t->heure >= 0) {
+      const int lb = (ECRAN_L - 2 * MARGE - 3 * 10) / 4;
+      const int yRap = y + VALEUR_H + 2;
+      UI::bouton(boite(MARGE, yRap, lb, RAPIDES_H), "−15m", D_HEURE_MOINS_M, 0, STYLE_CONTOUR, F_PETITE);
+      UI::bouton(boite(MARGE + lb + 10, yRap, lb, RAPIDES_H), "+15m", D_HEURE_PLUS_M, 0, STYLE_CONTOUR, F_PETITE);
+      UI::bouton(boite(MARGE + 2 * (lb + 10), yRap, lb, RAPIDES_H), "Taper", D_HEURE_SAISIR, 0, STYLE_CONTOUR, F_PETITE);
+      UI::bouton(boite(MARGE + 3 * (lb + 10), yRap, lb, RAPIDES_H), "Effacer", D_HEURE_EFFACER, 0, STYLE_DISCRET, F_PETITE);
+    } else {
+      static const char* const HEURES_DEFAUT[4] = {"8:00", "12:00", "18:00", "Taper"};
+      const int lb = (ECRAN_L - 2 * MARGE - 3 * 10) / 4;
+      const int yRap = y + VALEUR_H + 2;
+      for (int i = 0; i < 3; i++) {
+        UI::bouton(boite(MARGE + i * (lb + 10), yRap, lb, RAPIDES_H), HEURES_DEFAUT[i], D_HEURE, i + 1, STYLE_CONTOUR, F_PETITE);
+      }
+      UI::bouton(boite(MARGE + 3 * (lb + 10), yRap, lb, RAPIDES_H), "Taper", D_HEURE_SAISIR, 0, STYLE_PLEIN, F_PETITE);
+    }
     y += BLOC_H;
 
-    // Répétition (toucher : la suivante du cycle)
+    // Répétition
     char rep[40];
     if (t->repetition == REP_SEMAINE && t->echeance) {
       snprintf(rep, sizeof(rep), "chaque %s", Horloge::nomJour(Horloge::jourSemaine(t->echeance)));
     } else {
       Stockage::texteRepetition(t->repetition, rep, sizeof(rep));
     }
-    UI::ligneReglage(y, "Répéter", rep, D_REPETER);
-    y += 84;
+    const int hRep = 48;
+    Dessin::texte(F_TEXTE, MARGE, Dessin::baseCentree(F_TEXTE, y, hRep), "Répéter", NOIR);
+    Dessin::texteDroite(F_GRAS, ECRAN_L - MARGE - 28, Dessin::baseCentree(F_GRAS, y, hRep), rep, GRIS_FONCE);
+    Dessin::icone(ICONE_CHEVRON_D, ECRAN_L - MARGE - 15, y + (hRep - 21) / 2, 3, GRIS);
+    UI::zone(boite(0, y, ECRAN_L, hRep), D_REPETER);
+    y += hRep + 10;
+
+    // 7 pastilles pour les jours de la semaine (Lundi à Dimanche)
+    static const char* const JOURS_BOULES[7] = {"L", "M", "M", "J", "V", "S", "D"};
+    const int diam = 46;
+    const int ecartJour = (ECRAN_L - 2 * MARGE - 7 * diam) / 6;
+    for (int j = 0; j < 7; j++) {
+      const int jx = MARGE + j * (diam + ecartJour);
+      const bool actif = (t->joursSemaine & (1 << j)) != 0;
+      if (actif) {
+        Dessin::cerclePlein(jx + diam / 2, y + diam / 2, diam / 2, NOIR);
+        Dessin::texteCentre(F_GRAS, jx + diam / 2, y + 32, JOURS_BOULES[j], BLANC);
+      } else {
+        Dessin::cercle(jx + diam / 2, y + diam / 2, diam / 2, 2, GRIS);
+        Dessin::texteCentre(F_GRAS, jx + diam / 2, y + 32, JOURS_BOULES[j], NOIR);
+      }
+      UI::zone(boite(jx - 4, y - 4, diam + 8, diam + 8), D_JOUR_0 + j);
+    }
+    y += diam + 14;
+    UI::separateur(y);
+    y += 10;
 
     // Rappel : seulement avec une date et une heure
     if (t->echeance && t->heure >= 0) {
@@ -274,24 +462,34 @@ class AppTache : public App {
       }
       UI::ligneInterrupteur(y, lib, t->rappel, D_RAPPEL);
     } else {
-      const int base = Dessin::baseCentree(F_TEXTE, y, 84);
+      const int base = Dessin::baseCentree(F_TEXTE, y, 64);
       Dessin::texte(F_TEXTE, MARGE, base, "Rappel", GRIS);
       Dessin::texteDroite(F_PETITE, ECRAN_L - MARGE, base, "choisis d'abord une heure", GRIS);
-      UI::separateur(y + 82);
-      UI::zone(boite(0, y, ECRAN_L, 84), D_RAPPEL);
+      UI::separateur(y + 62);
+      UI::zone(boite(0, y, ECRAN_L, 64), D_RAPPEL);
     }
-    y += 84;
+    y += 72;
 
-    // Dates de création / modification
+    // Tâche qu'on vient de créer : pas de dates ni de « Supprimer », mais Annuler / Ajouter.
+    const int ySuppr = maxi(y + 50, 856);
+    if (m_nouvelle) {
+      const int l = (ECRAN_L - 2 * MARGE - 16) / 2;
+      UI::bouton(boite(MARGE, ySuppr, l, 68), "Annuler", D_ANNULER, 0, STYLE_DISCRET);
+      UI::bouton(boite(MARGE + l + 16, ySuppr, l, 68), "Ajouter", D_AJOUTER, 0, STYLE_PLEIN);
+      return;
+    }
+
+    // Dates de création / modification bien dégagées au-dessus du bouton supprimer
     char cr[40], md[40], ligne[96];
     dateHeure(t->cree, cr, sizeof(cr));
     dateHeure(t->maj, md, sizeof(md));
     snprintf(ligne, sizeof(ligne), "Créée le %s", cr);
-    Dessin::texte(F_PETITE, MARGE, y + 28, ligne, GRIS_FONCE);
+    Dessin::texte(F_PETITE, MARGE, y + 16, ligne, GRIS_FONCE);
     snprintf(ligne, sizeof(ligne), "Modifiée le %s", md);
-    Dessin::texte(F_PETITE, MARGE, y + 54, ligne, GRIS_FONCE);
+    Dessin::texte(F_PETITE, MARGE, y + 36, ligne, GRIS_FONCE);
 
-    UI::bouton(boite(MARGE, SUPPRIMER_Y, ECRAN_L - 2 * MARGE, 76), "Supprimer la tâche", D_SUPPRIMER);
+    // Bouton de suppression en bas sans chevauchement
+    UI::bouton(boite(MARGE, ySuppr, ECRAN_L - 2 * MARGE, 68), "Supprimer la tâche", D_SUPPRIMER);
   }
 
   void action(int code, int arg) override {
@@ -302,11 +500,13 @@ class AppTache : public App {
       case D_TITRE:
         Systeme::ouvrir(appClavier("Modifier la tâche", t->titre, TACHE_TITRE_MAX, SAISIE_LIGNE, rappelTitre, this));
         return;
+      case D_DESCRIPTION:
+        Systeme::ouvrir(appClavier("Description", t->description, 120, SAISIE_LIGNE, rappelDescription, this));
+        return;
       case D_FAITE:
         basculer(t);
         break;
       case D_ECHEANCE: {
-        // « Aucune » enlève aussi l'heure, le rappel et la répétition (Stockage::echeanceTache).
         static const int DECALAGE[4] = {-1, 0, 1, 7};
         const int k = borner(arg, 0, 3);
         Stockage::echeanceTache(m_id, k == 0 ? 0 : Horloge::ajouterJours(auj, DECALAGE[k]));
@@ -318,18 +518,42 @@ class AppTache : public App {
       case D_PLUS:
         if (t->echeance) Stockage::echeanceTache(m_id, Horloge::ajouterJours(t->echeance, 1));
         break;
-      case D_HEURE:   // sans date, une heure met l'échéance à aujourd'hui (Stockage::heureTache)
-        Stockage::heureTache(m_id, HEURES_RAPIDES[borner(arg, 0, 3)]);
+      case D_HEURE: {
+        static const int H_DEFS[4] = {-1, 8 * 60, 12 * 60, 18 * 60};
+        Stockage::heureTache(m_id, H_DEFS[borner(arg, 0, 3)]);
         break;
-      case D_HEURE_MOINS:   // au quart d'heure précédent / suivant, sans changer de jour
+      }
+      case D_HEURE_SAISIR: {
+        char initH[12] = "";
+        if (t->heure >= 0) snprintf(initH, sizeof(initH), "%d:%02d", t->heure / 60, t->heure % 60);
+        Systeme::ouvrir(appClavier("Heure (ex: 7:15 ou 14h30)", initH, 8, SAISIE_LIGNE, rappelHeureSaisie, this));
+        return;
+      }
+      case D_HEURE_MOINS_H:
+        if (t->heure >= 0) Stockage::heureTache(m_id, ((t->heure - 60) + 1440) % 1440);
+        break;
+      case D_HEURE_PLUS_H:
+        if (t->heure >= 0) Stockage::heureTache(m_id, (t->heure + 60) % 1440);
+        break;
+      case D_HEURE_MOINS_M:
         if (t->heure >= 0) Stockage::heureTache(m_id, ((t->heure % 15 ? t->heure - t->heure % 15 : t->heure - 15) + 1440) % 1440);
         break;
-      case D_HEURE_PLUS:
+      case D_HEURE_PLUS_M:
         if (t->heure >= 0) Stockage::heureTache(m_id, ((t->heure / 15 + 1) * 15) % 1440);
+        break;
+      case D_HEURE_EFFACER:
+        Stockage::heureTache(m_id, -1);
         break;
       case D_REPETER:
         Stockage::repetitionTache(m_id, repetitionSuivante(t->repetition));
         break;
+      case D_JOUR_0: case D_JOUR_1: case D_JOUR_2: case D_JOUR_3:
+      case D_JOUR_4: case D_JOUR_5: case D_JOUR_6: {
+        const int j = code - D_JOUR_0;
+        uint8_t js = t->joursSemaine ^ (1 << j);
+        Stockage::joursSemaineTache(m_id, js);
+        break;
+      }
       case D_RAPPEL:
         if (!t->echeance || t->heure < 0) {
           Systeme::notifier("Choisis d'abord une heure");
@@ -339,6 +563,16 @@ class AppTache : public App {
         break;
       case D_SUPPRIMER:
         Systeme::ouvrir(appDialogue("Supprimer la tâche ?", t->titre, "Supprimer", rappelSuppression, this));
+        return;
+      case D_ANNULER:   // création abandonnée : la tâche n'a jamais existé pour l'utilisateur
+        m_nouvelle = false;
+        Stockage::supprimerTache(m_id);
+        Systeme::retour();
+        return;
+      case D_AJOUTER:
+        m_nouvelle = false;
+        Systeme::retour();
+        Systeme::notifier("Tâche ajoutée");
         return;
       default:
         break;
@@ -357,6 +591,7 @@ class AppTache : public App {
 
  private:
   char m_id[ID_LONGUEUR + 1] = "";
+  bool m_nouvelle = false;   // ouverte juste après sa création
 
   // Cadre du titre : case à cocher à gauche, titre à droite (toucher pour le modifier).
   // Autant de lignes que la place le permet (3 au plus), la dernière coupée par « … ».
@@ -438,6 +673,30 @@ class AppTache : public App {
     if (ok && texte && *texte) Stockage::renommerTache(moi->m_id, texte);
   }
 
+  static void rappelDescription(bool ok, const char* texte, void* ctx) {
+    AppTache* moi = static_cast<AppTache*>(ctx);
+    if (ok) Stockage::descriptionTache(moi->m_id, texte ? texte : "");
+  }
+
+  static void rappelHeureSaisie(bool ok, const char* texte, void* ctx) {
+    AppTache* moi = static_cast<AppTache*>(ctx);
+    if (!ok || !texte || !*texte) return;
+    int h = -1, m = 0;
+    if (sscanf(texte, "%d:%d", &h, &m) == 2 ||
+        sscanf(texte, "%dh%d", &h, &m) == 2 ||
+        sscanf(texte, "%dH%d", &h, &m) == 2 ||
+        sscanf(texte, "%d", &h) == 1) {
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        Stockage::heureTache(moi->m_id, h * 60 + m);
+        Systeme::redessiner();
+      } else {
+        Systeme::notifier("Heure invalide (0 à 23h)");
+      }
+    } else {
+      Systeme::notifier("Format: 7:15 ou 14h30");
+    }
+  }
+
   static void rappelSuppression(bool oui, void* ctx) {
     AppTache* moi = static_cast<AppTache*>(ctx);
     if (!oui) return;
@@ -453,8 +712,8 @@ AppTache g_tache;
 
 App* appTaches() { return &g_taches; }
 
-App* appTache(const char* id) {
-  g_tache.choisir(id);
+App* appTache(const char* id, bool nouvelle) {
+  g_tache.choisir(id, nouvelle);
   return &g_tache;
 }
 

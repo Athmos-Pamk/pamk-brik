@@ -23,6 +23,8 @@ struct Tache {
   uint32_t rappelVu;   // UTC du moment prévu du dernier rappel affiché (évite les doublons)
   uint32_t rappelReporte;   // UTC du rappel reporté (« Dans 10 min »), 0 = à l'heure prévue
   uint8_t jourMois;    // REP_MOIS : jour d'origine (le 31 revient après un 30 ou un 28 février)
+  char description[128]; // description / note complémentaire
+  uint8_t joursSemaine;  // bits 0..6 = Lundi, Mardi, ..., Dimanche (répétition hebdo)
 };
 
 struct Note {
@@ -30,6 +32,7 @@ struct Note {
   char* texte;         // UTF-8 en PSRAM ; la première ligne sert de titre
   uint32_t cree;
   uint32_t maj;
+  bool epinglee;       // 01/11/2026 : en post-it sur l'écran de veille (absent des anciens fichiers)
 };
 
 enum FiltreTaches : uint8_t { TACHES_A_FAIRE, TACHES_FAITES, TACHES_TOUTES };
@@ -47,6 +50,8 @@ const Tache* ajouterTache(const char* titre, int echeance);
 bool renommerTache(const char* id, const char* titre);
 bool cocherTache(const char* id, bool faite);
 bool echeanceTache(const char* id, int echeance);
+bool descriptionTache(const char* id, const char* desc);
+bool joursSemaineTache(const char* id, uint8_t jours);
 bool supprimerTache(const char* id);
 int listeTaches(FiltreTaches f, int* indices, int max);  // triées pour l'affichage
 int tachesDuJour(int date, int* indices, int max);       // échéance = date
@@ -77,6 +82,9 @@ const Note* ajouterNote(const char* texte);
 bool modifierNote(const char* id, const char* texte);
 bool supprimerNote(const char* id);
 void titreNote(const Note* n, char* sortie, size_t taille);   // première ligne non vide
+// 01/11/2026 : notes épinglées (en tête de la liste, la plus récente en post-it sur la veille).
+bool epinglerNote(const char* id, bool oui);
+int notesEpinglees(int* indices, int max);              // dans l'ordre de la liste
 
 // --- Divers ---
 int nbTraces();

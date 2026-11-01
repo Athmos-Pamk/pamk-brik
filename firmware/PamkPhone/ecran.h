@@ -34,6 +34,9 @@ void rafraichirRapide();
 void inverserZone(const Boite& b);
 void definirCompletAuto(bool actif); // image complète quand l'écran a beaucoup « travaillé »
 void nettoyerEnProfondeur();        // longue séquence anti-fantôme puis image complète
+// Image complète auto (Param.nettoyageAuto == 3) : l'écran a assez servi pour qu'une image
+// complète soit utile ; systeme la fait à la mise en veille, quand on ne regarde plus.
+bool nettoyageConseille();
 void supposerAffiche();             // la dalle montre déjà la toile (réveil sans redessin)
 void invaliderZone(const Boite& b); // contenu de cette zone inconnu (sera nettoyé puis redessiné)
 void oublierAffichage();            // contenu de la dalle inconnu -> prochain = complet

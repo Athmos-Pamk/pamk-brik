@@ -71,8 +71,12 @@ class AppPomodoro : public App {
     if (!m_garderVue) m_vue = VUE_POMODORO;   // retour du clavier « Nouvelle tâche » : on reste
     m_garderVue = false;
     if (!tacheChoisie()) Minuteries::pomoChoisirTache("");   // faite ou supprimée entre-temps
-    // Si seul le minuteur tourne, on ouvre directement son onglet.
-    if (Minuteries::minActif() && Minuteries::pomoPhase() == POMO_ARRET) m_onglet = 1;
+    // Si Pomodoro tourne, on ouvre l'onglet Pomodoro (1) ; sinon Minuteur (0)
+    if (Minuteries::pomoPhase() != POMO_ARRET && !Minuteries::minActif()) {
+      m_onglet = 1;
+    } else {
+      m_onglet = 0;
+    }
   }
 
   void dessiner() override {
@@ -81,12 +85,12 @@ class AppPomodoro : public App {
     } else if (concentration()) {
       dessinerConcentration();
     } else {
-      UI::barreTitre(m_onglet ? "Minuteur" : "Pomodoro", true);
+      UI::barreTitre("Minuteur", true);
       const int lo = (ECRAN_L - 2 * MARGE - 12) / 2;
-      UI::bouton(boite(MARGE, ONGLETS_Y, lo, ONGLETS_H), "Pomodoro", C_ONGLET, 0, m_onglet == 0 ? STYLE_PLEIN : STYLE_DISCRET);
-      UI::bouton(boite(MARGE + lo + 12, ONGLETS_Y, lo, ONGLETS_H), "Minuteur", C_ONGLET, 1, m_onglet == 1 ? STYLE_PLEIN : STYLE_DISCRET);
-      if (m_onglet == 0) dessinerPomodoro();
-      else dessinerMinuteur();
+      UI::bouton(boite(MARGE, ONGLETS_Y, lo, ONGLETS_H), "Décompte", C_ONGLET, 0, m_onglet == 0 ? STYLE_PLEIN : STYLE_DISCRET);
+      UI::bouton(boite(MARGE + lo + 12, ONGLETS_Y, lo, ONGLETS_H), "Pomodoro", C_ONGLET, 1, m_onglet == 1 ? STYLE_PLEIN : STYLE_DISCRET);
+      if (m_onglet == 0) dessinerMinuteur();
+      else dessinerPomodoro();
     }
     m_signature = signature();
   }
@@ -171,7 +175,7 @@ class AppPomodoro : public App {
       }
       return true;
     }
-    if (m_onglet == 0) {
+    if (m_onglet == 1) {   // onglet Pomodoro (0 = Décompte, le minuteur)
       if (b == BOUTON_PLUS) {
         if (Minuteries::pomoPhase() == POMO_ARRET) Minuteries::pomoDemarrer();
         else Minuteries::pomoPauseReprise();
@@ -221,7 +225,7 @@ class AppPomodoro : public App {
     s = s * 2 + (Minuteries::pomoSuspendu() ? 1 : 0);
     s = s * 2 + (Minuteries::minActif() ? 1 : 0);
     s = s * 2 + (Minuteries::minSuspendu() ? 1 : 0);
-    int r = (m_onglet == 0 || conc) ? Minuteries::pomoRestantS() : Minuteries::minRestantS();
+    int r = (m_onglet == 1 || conc) ? Minuteries::pomoRestantS() : Minuteries::minRestantS();   // 1 = Pomodoro
     if (m_vue == VUE_CHOIX) r = 0;   // la liste ne dépend pas du temps
     s = s * 1000 + (r > 0 && r < 60 ? 999 : (r + 59) / 60);
     return s;
@@ -390,36 +394,69 @@ class AppPomodoro : public App {
 
   void dessinerMinuteur() {
     char t[48];
+    const int cx = ECRAN_L / 2;
+    const int cyDial = 360;
+
     if (Minuteries::minActif()) {
-      Dessin::texteCentre(F_PIXEL, ECRAN_L / 2, 270, Minuteries::minSuspendu() ? "EN PAUSE" : "EN COURS", GRIS_FONCE);
+      Dessin::texteCentre(F_PIXEL, cx, 230, Minuteries::minSuspendu() ? "EN PAUSE" : "EN COURS", GRIS_FONCE);
       const int restant = Minuteries::minRestantS();
-      grandesMinutes(restant, 400);
       const int duree = maxi(1, Minuteries::minDureeS());
-      Dessin::barreProgression(boite(MARGE, 430, ECRAN_L - 2 * MARGE, 16),
+
+      // Cadran circulaire élégant
+      Dessin::cercle(cx, cyDial, 105, 3, NOIR);
+      Dessin::cercle(cx, cyDial, 115, 1, GRIS_CLAIR);
+
+      // Minutes seulement : un e-paper ne se redessine pas chaque seconde (clignotement, usure,
+      // batterie). L'écran change une fois par minute, comme la signature().
+      char numMin[12];
+      if (restant > 0 && restant < 60) snprintf(numMin, sizeof(numMin), "<1");
+      else snprintf(numMin, sizeof(numMin), "%d", (restant + 59) / 60);
+      Dessin::texteCentre(F_GRANDE, cx, cyDial + 30, numMin, NOIR);
+      Dessin::texteCentre(F_PIXEL, cx, cyDial + 78, "min", GRIS_FONCE);
+
+      // Barre de progression circulaire / rectangulaire
+      Dessin::barreProgression(boite(MARGE, cyDial + 128, ECRAN_L - 2 * MARGE, 14),
                                (int)((long)(duree - restant) * 1000 / duree), GRIS_CLAIR, NOIR);
       if (!Minuteries::minSuspendu()) {
         heureFin(restant, t, sizeof(t));
-        Dessin::texteCentre(F_TEXTE, ECRAN_L / 2, 500, t, NOIR);
+        Dessin::texteCentre(F_TEXTE, cx, cyDial + 175, t, NOIR);
       }
       const int lb = (ECRAN_L - 2 * MARGE - 16) / 2;
-      UI::bouton(boite(MARGE, 630, lb, 84), Minuteries::minSuspendu() ? "Reprendre" : "Pause", C_MIN_PAUSE, 0, STYLE_PLEIN);
-      UI::bouton(boite(MARGE + lb + 16, 630, lb, 84), "Arrêter", C_MIN_ARRETER);
+      UI::bouton(boite(MARGE, 730, lb, 84), Minuteries::minSuspendu() ? "Reprendre" : "Pause", C_MIN_PAUSE, 0, STYLE_PLEIN);
+      UI::bouton(boite(MARGE + lb + 16, 730, lb, 84), "Arrêter", C_MIN_ARRETER, 0, STYLE_CONTOUR);
       return;
     }
-    Dessin::texteCentre(F_PIXEL, ECRAN_L / 2, 250, "DURÉE", GRIS_FONCE);
-    grandesMinutes(Param.minuteurMin * 60, 360);
+
+    // Cadran circulaire en attente
+    Dessin::cercle(cx, cyDial, 95, 3, NOIR);
+    Dessin::cercle(cx, cyDial, 103, 1, GRIS_CLAIR);
+
+    char valMin[12];
+    snprintf(valMin, sizeof(valMin), "%d", Param.minuteurMin);
+    Dessin::texteCentre(F_GRANDE, cx, cyDial + 24, valMin, NOIR);
+    Dessin::texteCentre(F_TITRE, cx, cyDial + 62, "min", GRIS_FONCE);
+
+    // Boutons de réglage fin (− 5, − 1, + 1, + 5)
     static const char* const LIB_AJOUTS[4] = {"- 5", "- 1", "+ 1", "+ 5"};
     const int la = (ECRAN_L - 2 * MARGE - 3 * 12) / 4;
     for (int i = 0; i < 4; i++) {
-      UI::bouton(boite(MARGE + i * (la + 12), 392, la, 64), LIB_AJOUTS[i], C_MIN_AJOUT, i, STYLE_DISCRET);
+      UI::bouton(boite(MARGE + i * (la + 12), 486, la, 56), LIB_AJOUTS[i], C_MIN_AJOUT, i, STYLE_CONTOUR);
     }
-    const int lp = (ECRAN_L - 2 * MARGE - 2 * 16) / 3;
-    for (int i = 0; i < 9; i++) {
-      snprintf(t, sizeof(t), "%d min", PRESETS[i]);
-      UI::bouton(boite(MARGE + (i % 3) * (lp + 16), 480 + (i / 3) * 80, lp, 64), t, C_MIN_PRESET, i,
-                 Param.minuteurMin == PRESETS[i] ? STYLE_PLEIN : STYLE_CONTOUR);
+
+    // 6 Préréglages rapides (3, 5, 10, 15, 25, 45 min)
+    static const int PRESETS_COURTS[6] = {3, 5, 10, 15, 25, 45};
+    const int lp = (ECRAN_L - 2 * MARGE - 2 * 12) / 3;
+    for (int i = 0; i < 6; i++) {
+      snprintf(t, sizeof(t), "%d min", PRESETS_COURTS[i]);
+      const int px = MARGE + (i % 3) * (lp + 12);
+      const int py = 560 + (i / 3) * 66;
+      int presetIdx = 0;
+      for (int k = 0; k < 9; k++) if (PRESETS[k] == PRESETS_COURTS[i]) presetIdx = k;
+      UI::bouton(boite(px, py, lp, 54), t, C_MIN_PRESET, presetIdx,
+                 Param.minuteurMin == PRESETS_COURTS[i] ? STYLE_PLEIN : STYLE_CONTOUR);
     }
-    UI::bouton(boite(MARGE, 740, ECRAN_L - 2 * MARGE, 84), "Démarrer le minuteur", C_MIN_DEMARRER, 0, STYLE_PLEIN);
+
+    UI::bouton(boite(MARGE, 730, ECRAN_L - 2 * MARGE, 84), "Démarrer le minuteur", C_MIN_DEMARRER, 0, STYLE_PLEIN);
   }
 };
 

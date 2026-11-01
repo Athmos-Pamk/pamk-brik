@@ -35,6 +35,11 @@ enum Icone : uint8_t {
   ICONE_ENTREE,         // 10 x 7
   ICONE_RECHERCHE,      // 12 x 12 (loupe)
   ICONE_BILAN,          // 12 x 12 (barres)
+  ICONE_METEO,          // 12 x 12 (soleil / nuage)
+  ICONE_ACCES,          // 12 x 12 (ordinateur)
+  ICONE_HABITUDES,      // 12 x 12 (cases de rituels)
+  ICONE_ZEN,            // 12 x 12 (respiration / fleur)
+  ICONE_CONVERTISSEUR,  // 12 x 12 (flèches opposées)
   ICONE_NB
 };
 

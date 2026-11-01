@@ -165,9 +165,12 @@ Geste suivre() {
       s_ignorer = false;
     } else if (!s_longEmis) {
       const int dx = s_x - s_x0, dy = s_y - s_y0;
+      // Tout ce qui n'est pas un glissé est un toucher (au point de départ) : plus de zone morte
+      // entre TACTILE_TOLERANCE_PX et TACTILE_GLISSER_PX, où un toucher qui avait un peu bougé
+      // ne faisait rien. La tolérance ne sert plus qu'à l'appui long.
       if (abs(dx) >= TACTILE_GLISSER_PX || abs(dy) >= TACTILE_GLISSER_PX) {
         g.type = GESTE_GLISSER;
-      } else if (abs(dx) < TACTILE_TOLERANCE_PX && abs(dy) < TACTILE_TOLERANCE_PX) {
+      } else {
         g.type = GESTE_TOUCHER;
       }
       g.x = s_x0;
