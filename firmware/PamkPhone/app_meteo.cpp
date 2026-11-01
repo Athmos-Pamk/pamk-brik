@@ -1,5 +1,5 @@
 // =============================================================================
-//  Pamk Phone — Écran Météo Multi-villes & Recherche
+//  Pamk Brik — Écran Météo Multi-villes & Recherche
 // =============================================================================
 #include "app.h"
 #include "systeme.h"

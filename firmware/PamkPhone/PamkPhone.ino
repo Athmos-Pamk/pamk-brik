@@ -1,5 +1,5 @@
 // =============================================================================
-//  Pamk Phone V0 — téléphone minimaliste e-paper (sans carte SIM ni son)
+//  Pamk Brik V0 — téléphone minimaliste e-paper (sans carte SIM ni son)
 //  Carte : LILYGO T5 4.7" E-paper V2.3 ESP32-S3 avec écran tactile (H716)
 //
 //  Réglages de l'IDE et bibliothèques : voir firmware/README.md

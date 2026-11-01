@@ -1,5 +1,5 @@
 // =============================================================================
-//  Pamk Phone — météo locale ultra-légère via Open-Meteo (sans clé d'API)
+//  Pamk Brik — météo locale ultra-légère via Open-Meteo (sans clé d'API)
 //  Les données sont gardées en mémoire RTC pour persister en veille.
 // =============================================================================
 #pragma once

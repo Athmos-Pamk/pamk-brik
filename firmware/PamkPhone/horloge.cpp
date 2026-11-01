@@ -145,7 +145,7 @@ static bool rtcEcrire(uint32_t utc) {
   Wire.write(versBcd(jourSem));
   Wire.write(versBcd(m));                       // siècle = 0 (années 2000)
   Wire.write(versBcd(a - 2000));
-  for (int i = 0; i < 4; i++) Wire.write(SIGNATURE[i]);   // 0x09-0x0C : « écrit par Pamk Phone, en UTC »
+  for (int i = 0; i < 4; i++) Wire.write(SIGNATURE[i]);   // 0x09-0x0C : « écrit par Pamk Brik, en UTC »
   const bool ok = Wire.endTransmission() == 0;
   if (ok) s_rtcSignee = true;
   return ok;
@@ -187,7 +187,7 @@ void demarrer() {
     } else if (!s_rtcSignee) {
       // Jamais réglée par ce firmware : on ne s'y fie pas (« Heure à régler » à l'écran)
       // tant qu'une synchro NTP ou un réglage manuel ne l'a pas réécrite en UTC.
-      JOURNAL("[horloge] RTC jamais réglée par Pamk Phone (heure d'usine ?) : heure à régler");
+      JOURNAL("[horloge] RTC jamais réglée par Pamk Brik (heure d'usine ?) : heure à régler");
     } else {
       JOURNAL("[horloge] RTC présente mais heure invalide (pile vide ?)");
     }

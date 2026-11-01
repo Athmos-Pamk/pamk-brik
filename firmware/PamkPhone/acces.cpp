@@ -21,7 +21,7 @@
 
 namespace {
 
-const char* const NOM_RESEAU = "pamk-phone";      // ArduinoOTA et mDNS (http://pamk-phone.local)
+const char* const NOM_RESEAU = "pamk-brik";      // ArduinoOTA et mDNS (http://pamk-brik.local)
 const int ECHECS_MAX = 5;                         // codes faux d'affilée avant la pause
 const uint32_t PAUSE_ECHECS_MS = 60000;
 const uint32_t REESSAI_WIFI_MS = 15000;
@@ -35,7 +35,7 @@ const uint32_t MESSAGE_MS = 10000;                // durée d'un message d'éche
 const char PAGE[] PROGMEM = R"PAMK(<!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pamk Phone</title>
+<title>Pamk Brik</title>
 <style>
 :root{--n:#111;--g:#666;--c:#d6d6d2;--f:#f4f4f1}
 *{box-sizing:border-box}
@@ -62,7 +62,7 @@ textarea{width:100%;min-height:90px;resize:vertical;display:block;margin-bottom:
 .e{color:#b00020}
 progress{width:100%;height:14px;margin-top:10px;accent-color:var(--n)}
 </style></head><body><main>
-<h1>Pamk Phone</h1><div class="m" id="ver">accès depuis l'ordinateur</div>
+<h1>Pamk Brik</h1><div class="m" id="ver">accès depuis l'ordinateur</div>
 <section id="entree"><h2>Code</h2>
 <form id="fc" class="l"><input id="code" class="x" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="code à 4 chiffres"><button>Entrer</button></form>
 <p class="m">Le code est affiché en grand sur l'écran du téléphone.</p><p id="ce" class="m e"></p></section>
@@ -196,7 +196,7 @@ $("bs").onclick = async () => {
     const r = await fetch("/api/sauvegarde", { headers: { "X-Code": code } });
     if (r.status === 403) return verrouiller("Code incorrect.");
     if (!r.ok) throw new Error("erreur " + r.status);
-    const a = el("a", { href: URL.createObjectURL(await r.blob()), download: "pamk-phone-" + new Date().toISOString().slice(0, 10) + ".json" });
+    const a = el("a", { href: URL.createObjectURL(await r.blob()), download: "pamk-brik-" + new Date().toISOString().slice(0, 10) + ".json" });
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   } catch (e) { msg(e.message, true); }
 };
@@ -655,7 +655,7 @@ void routeNote() {
 
 void routeSauvegarde() {
   if (!autoriser()) return;
-  s_serveur.sendHeader("Content-Disposition", "attachment; filename=\"pamk-phone-sauvegarde.json\"");
+  s_serveur.sendHeader("Content-Disposition", "attachment; filename=\"pamk-brik-sauvegarde.json\"");
   SortieWeb& o = commencerJson();
   Stockage::exporter(o);
   o.vider();
@@ -734,7 +734,7 @@ void demarrerOTA() {
     static const char* const RAISONS[] = {"mot de passe", "démarrage", "connexion", "réception", "vérification"};
     echecMaj((int)e >= 0 && (int)e < 5 ? RAISONS[(int)e] : "erreur");
   });
-  s_ota->begin();                          // lance aussi mDNS (pamk-phone.local)
+  s_ota->begin();                          // lance aussi mDNS (pamk-brik.local)
   MDNS.addService("http", "tcp", 80);
 }
 

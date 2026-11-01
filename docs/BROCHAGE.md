@@ -1,4 +1,4 @@
-# Pamk Phone V0 — brochage et câblage
+# Pamk Brik V0 — brochage et câblage
 
 Carte : **LILYGO T5 4.7" E-paper V2.3 ESP32-S3** (module ESP32-S3-WROOM-1-N16R8 : 16 Mo de flash,
 8 Mo de PSRAM octale), version « With Touch Glass », « No Solder Pin » (code LilyGO H716).
@@ -91,7 +91,7 @@ dans `config.h`).
 
 ## Tout le brochage de la carte
 
-| GPIO | Rôle sur la carte | Utilisé par Pamk Phone |
+| GPIO | Rôle sur la carte | Utilisé par Pamk Brik |
 |---|---|---|
 | 0 | STR du registre 74HCT4094 (commande de l'écran) + bouton BOOT (S6) ; broche de démarrage | pilote d'écran |
 | 1, 2, 3, 4, 5, 6, 7, 8 | données de l'écran D1, D2, D3, D4, D5, D6, D7, D0 | pilote d'écran |

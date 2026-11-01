@@ -1,5 +1,5 @@
 ==============================================================================
-VÉRIFICATION PAMK PHONE V0
+VÉRIFICATION PAMK BRIK V0
 ==============================================================================
 
 1. Solides (valide / fermé / nombre de solides / volume)

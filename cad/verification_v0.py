@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Vérifications chiffrées du Pamk Phone V0 (par le calcul, pas à l'œil) :
+Vérifications chiffrées du Pamk Brik V0 (par le calcul, pas à l'œil) :
   1. chaque pièce : solide valide, fermé, d'un seul tenant ; STL étanche
   2. interférences : volume d'intersection entre toutes les pièces imprimées et achetées
   3. jeux : distances mini entre les couples importants (comparées aux jeux voulus)
@@ -140,7 +140,7 @@ def verifier(pieces, ref, infos):
     import telephone_v0 as T
     r = Rapport()
     r("=" * 78)
-    r("VÉRIFICATION PAMK PHONE V0")
+    r("VÉRIFICATION PAMK BRIK V0")
     r("=" * 78)
 
     # ------------------------------------------------------------------ 1

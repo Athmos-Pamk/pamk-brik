@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Aperçus PNG du Pamk Phone V0 (rendu maison : projection orthographique + ombrage plat,
+Aperçus PNG du Pamk Brik V0 (rendu maison : projection orthographique + ombrage plat,
 dessiné avec matplotlib, aucune carte graphique nécessaire).
 
 Lancé automatiquement par telephone_v0.py. Seul :
@@ -167,9 +167,9 @@ def rendre(pieces, ref, infos):
     dims = (f"{2 * infos['A']:.1f} x {2 * infos['B']:.1f} x {H:.1f} mm "
             f"({H + 1.9:.1f} avec la plaque)")
     rendre_vue(objs(fin_p) + objs(ecran), (1.0, 0.39, 0.95), (0, 1, 0), os.path.join(DOSSIER, "1_trois_quarts_avant.png"),
-               "Pamk Phone V0 - 3/4 avant", notes=dims)
+               "Pamk Brik V0 - 3/4 avant", notes=dims)
     rendre_vue(objs(fin_p), (-1.0, 0.39, -0.95), (0, 1, 0), os.path.join(DOSSIER, "2_trois_quarts_dos.png"),
-               "Pamk Phone V0 - 3/4 dos (plaque aimantée, visage pixel)", notes=dims)
+               "Pamk Brik V0 - 3/4 dos (plaque aimantée, visage pixel)", notes=dims)
     rendre_vue(objs(fin_p) + objs(ecran), (0.28, -1.0, 0.22), (0, 0, 1), os.path.join(DOSSIER, "3_dessous_usb.png"),
                "Dessous : ouverture USB-C à la taille de l'embout (coque + bas du cadre), fente micro borgne", taille=(9, 6))
     rendre_vue(objs(fin_p) + objs(ecran), (1.0, -0.12, 0.18), (0, 0, 1), os.path.join(DOSSIER, "3b_flanc_droit.png"),
@@ -210,7 +210,7 @@ def rendre(pieces, ref, infos):
     axs[1].set_xlim(-66, 66)
     poignees = [plt.Rectangle((0, 0), 1, 1, color=c) for c in leg.values()]
     fig.legend(poignees, list(leg.keys()), loc="lower center", ncol=6, fontsize=8, frameon=False)
-    fig.suptitle(f"Pamk Phone V0 - coupes (épaisseur {H:.2f} mm sans plaque)", fontsize=12, x=0.01, ha="left")
+    fig.suptitle(f"Pamk Brik V0 - coupes (épaisseur {H:.2f} mm sans plaque)", fontsize=12, x=0.01, ha="left")
     fig.tight_layout(rect=(0, 0.05, 1, 0.97))
     f = os.path.join(DOSSIER, "5_coupes.png")
     fig.savefig(f)

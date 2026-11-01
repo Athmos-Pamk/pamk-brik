@@ -1,4 +1,4 @@
-# Pamk Phone V0 : boîtier imprimable
+# Pamk Brik V0 : boîtier imprimable
 
 Boîtier style « Lingot » recalculé autour des pièces commandées : LilyGO T5 4.7" S3 avec
 verre tactile (H716), batterie LiPo 103450 de 10 mm, 3 boutons CMS 3 × 6 × 4,3.

@@ -1,5 +1,5 @@
 // =============================================================================
-//  Pamk Phone — Lanceur d'applications paginé (8 tuiles par page, 2 x 4)
+//  Pamk Brik — Lanceur d'applications paginé (8 tuiles par page, 2 x 4)
 // =============================================================================
 #include "app.h"
 #include "systeme.h"

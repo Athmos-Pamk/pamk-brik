@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Pamk Phone V0 - boîtier imprimable, entièrement paramétrique (CadQuery).
+Pamk Brik V0 - boîtier imprimable, entièrement paramétrique (CadQuery).
 
 Régénérer (PowerShell) :
     cd A:\\bernon\\Robotique\\Pamk_Phone\\cad ; .\\.venv\\Scripts\\python.exe telephone_v0.py
@@ -626,7 +626,7 @@ def exporter(pieces, ref):
 
 
 def resume(pieces, infos):
-    lignes = ["Pamk Phone V0 - cotes générales",
+    lignes = ["Pamk Brik V0 - cotes générales",
               f"  Encombrement du corps : {2 * A:.1f} (larg.) x {2 * B:.1f} (long.) x {H:.2f} (ép.) mm",
               f"  Avec la plaque et le visage : épaisseur {H + PLAQUE_EP + VISAGE_RELIEF:.2f} mm",
               f"  Face avant : {2 * (A - CHANF_AV):.1f} x {2 * (B - CHANF_AV):.1f} ; dos : "

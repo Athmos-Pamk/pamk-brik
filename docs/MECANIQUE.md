@@ -1,4 +1,4 @@
-# Pamk Phone V0 : données mécaniques des pièces achetées
+# Pamk Brik V0 : données mécaniques des pièces achetées
 
 Fiche de référence pour la 3D (`cad/telephone_v0.py`). Pour chaque cote : d'où elle vient, et
 si elle est **vérifiée** (lue dans un document officiel ou un fichier CAO du fabricant) ou

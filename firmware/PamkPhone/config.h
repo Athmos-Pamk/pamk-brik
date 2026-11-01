@@ -1,12 +1,12 @@
 // =============================================================================
-//  Pamk Phone V0 — configuration : brochage, constantes, mise en page
+//  Pamk Brik V0 — configuration : brochage, constantes, mise en page
 //  Carte : LILYGO T5 4.7" E-paper V2.3 ESP32-S3 (H716), écran ED047TC1 960x540.
 //  Tout le brochage est justifié dans docs/BROCHAGE.md (schémas LilyGO V2.3 / V2.4).
 // =============================================================================
 #pragma once
 #include <Arduino.h>
 
-#define PAMK_NOM      "Pamk Phone"
+#define PAMK_NOM      "Pamk Brik"
 #define PAMK_VERSION  "0.2.0"
 
 #ifndef BOARD_HAS_PSRAM

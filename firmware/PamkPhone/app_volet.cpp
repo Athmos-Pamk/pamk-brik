@@ -1,5 +1,5 @@
 // =============================================================================
-//  Pamk Phone — Volet de réglages rapides (accessible en balayant vers le bas)
+//  Pamk Brik — Volet de réglages rapides (accessible en balayant vers le bas)
 // =============================================================================
 #include "app.h"
 #include "systeme.h"

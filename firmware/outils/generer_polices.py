@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Génère les en-têtes de polices (.h) du Pamk Phone pour la bibliothèque LilyGo-EPD47.
+Génère les en-têtes de polices (.h) du Pamk Brik pour la bibliothèque LilyGo-EPD47.
 
 Adapté de scripts/fontconvert.py de LilyGo-EPD47 (lui-même repris d'epdiy, licence GPL-3.0) :
 même rendu FreeType, même codage des glyphes (4 bits par pixel, 2 pixels par octet,

@@ -912,7 +912,7 @@ bool telecharger(const char* url, Contexte& c) {
   http.setConnectTimeout(10000);
   http.setTimeout(10000);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setUserAgent("PamkPhone/" PAMK_VERSION);
+  http.setUserAgent("PamkBrik/" PAMK_VERSION);
   const char* cles[] = {"Transfer-Encoding"};
   http.collectHeaders(cles, 1);
   if (!http.begin(client, String(url))) return echec("adresse invalide");

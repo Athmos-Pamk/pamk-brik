@@ -39,7 +39,7 @@ class AppAcces : public App {
     UI::etiquette(MARGE, 284, "ADRESSE");
     if (m_adresse[0]) {
       Dessin::texteCentre(F_PIXEL, ECRAN_L / 2, 346, m_adresse, NOIR);
-      Dessin::texteCentre(F_PETITE, ECRAN_L / 2, 386, "ou http://pamk-phone.local", GRIS_FONCE);
+      Dessin::texteCentre(F_PETITE, ECRAN_L / 2, 386, "ou http://pamk-brik.local", GRIS_FONCE);
     } else {
       Dessin::texteCentre(F_TEXTE, ECRAN_L / 2, 346, "en attente du Wi-Fi…", GRIS);
     }
@@ -59,7 +59,7 @@ class AppAcces : public App {
         "Sur l'ordinateur (même Wi-Fi) : ouvre l'adresse",
         "dans le navigateur, puis tape le code.",
         "Arduino IDE : Outils > Port > port réseau",
-        "« pamk-phone » ; mot de passe = le code.",
+        "« pamk-brik » ; mot de passe = le code.",
         "Tout s'arrête quand tu quittes cet écran.",
       };
       for (int i = 0; i < 5; i++) Dessin::texte(F_PETITE, MARGE, 712 + i * 30, AIDE[i], i < 4 ? GRIS_FONCE : GRIS);

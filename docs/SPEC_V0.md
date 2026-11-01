@@ -1,4 +1,4 @@
-# Pamk Phone — V0 : ce qui est décidé
+# Pamk Brik — V0 : ce qui est décidé
 
 Projet perso de Thomas, téléphone minimaliste de l'écosystème Pamk. Cette fiche est la base
 commune de la 3D (`cad/`) et du code (`firmware/`).

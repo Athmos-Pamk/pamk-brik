@@ -1,5 +1,5 @@
 // =============================================================================
-//  Pamk Phone — Respiration Zen & Cohérence Cardiaque
+//  Pamk Brik — Respiration Zen & Cohérence Cardiaque
 // =============================================================================
 #include "app.h"
 #include "systeme.h"

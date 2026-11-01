@@ -1,5 +1,5 @@
 // =============================================================================
-//  Pamk Phone — Suivi d'habitudes et rituels quotidiens (Habit Tracker)
+//  Pamk Brik — Suivi d'habitudes et rituels quotidiens (Habit Tracker)
 //  Paginé : maximum 4 habitudes par page, navigation fluide par glissement ou puces
 // =============================================================================
 #include "app.h"

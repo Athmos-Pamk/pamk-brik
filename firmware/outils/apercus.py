@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Aperçus PNG des écrans du Pamk Phone (540 x 960), sans la carte.
+Aperçus PNG des écrans du Pamk Brik (540 x 960), sans la carte.
 
 Le script relit les constantes de PamkPhone/config.h et les polices générées
 (PamkPhone/src/polices/*.h) : le texte est dessiné glyphe par glyphe exactement comme
@@ -480,7 +480,7 @@ TACHES = [
     ("Rappeler le garage", False, "aujourd'hui"),
     ("Finir le montage de la vidéo 2", False, "demain"),
     ("Commander les aimants 6 x 2 mm", False, "ven. 30 oct."),
-    ("Imprimer la plaque du Pamk Phone", False, ""),
+    ("Imprimer la plaque du Pamk Brik", False, ""),
     ("Répondre aux commentaires Reddit", False, ""),
 ]
 
@@ -739,7 +739,7 @@ def ecran_alerte():
 def ecran_demarrage():
     effacer()
     visage(L // 2, 280, 24)
-    texte_centre(F_TITRE, L // 2, 560, "Pamk Phone", NOIR)
+    texte_centre(F_TITRE, L // 2, 560, "Pamk Brik", NOIR)
     texte_centre(F_PIXEL, L // 2, 612, "V0 - 0.1.0", GRIS_FONCE)
 
 

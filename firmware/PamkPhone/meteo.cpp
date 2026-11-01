@@ -202,7 +202,7 @@ bool rechercherVille(const char* nom, char* nomTrouve, size_t maxNom, float& lat
   http.setConnectTimeout(4000);   // court : l'interface attend pendant ce temps
   http.setTimeout(5000);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setUserAgent("PamkPhone/" PAMK_VERSION);
+  http.setUserAgent("PamkBrik/" PAMK_VERSION);
 
   String q = "";
   for (const char* p = nom; *p; p++) {
@@ -380,7 +380,7 @@ bool synchroniser(float lat, float lon) {
   http.setConnectTimeout(4000);   // court : l'interface attend pendant ce temps
   http.setTimeout(5000);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setUserAgent("PamkPhone/" PAMK_VERSION);
+  http.setUserAgent("PamkBrik/" PAMK_VERSION);
 
   char url[220];
   snprintf(url, sizeof(url),

@@ -1,4 +1,4 @@
-// Polices du Pamk Phone (générées par firmware/outils/generer_polices.py).
+// Polices du Pamk Brik (générées par firmware/outils/generer_polices.py).
 // Barlow (texte) et VT323 (accents pixel), licence SIL OFL 1.1 : src/polices/OFL-*.txt
 #pragma once
 #include "epd_driver.h"   // structures GFXfont / GFXglyph / UnicodeInterval

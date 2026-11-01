@@ -1,6 +1,6 @@
-# Pamk Phone V0 — firmware
+# Pamk Brik V0 — firmware
 
-Firmware Arduino du Pamk Phone V0 pour la **LILYGO T5 4.7" E-paper V2.3 ESP32-S3** tactile
+Firmware Arduino du Pamk Brik V0 pour la **LILYGO T5 4.7" E-paper V2.3 ESP32-S3** tactile
 (code LilyGO H716). Écran e-paper 960 × 540 utilisé **en portrait (540 × 960)**, interface en
 français, look Pamk (noir, blanc, gris, coins coupés, visage pixel).
 
@@ -132,7 +132,7 @@ sur **RST**, relâcher RST, puis relâcher BOOT ; téléverser ; appuyer sur RST
 3. **Wi-Fi** : Applications → Réglages → Wi-Fi → Chercher un réseau → toucher ton réseau →
    mot de passe au clavier → OK. **La première connexion Wi-Fi met l'heure à jour** : en mode
    « auto », le téléphone se connecte, récupère l'heure (NTP, fuseau Europe/Paris par défaut),
-   l'écrit **en UTC** dans l'horloge RTC de la carte avec une signature « Pamk Phone », puis
+   l'écrit **en UTC** dans l'horloge RTC de la carte avec une signature « Pamk Brik », puis
    **éteint le Wi-Fi**. Ensuite l'heure reste juste sans Wi-Fi, après un redémarrage, une veille
    ou même une coupure de la batterie (l'horloge a sa propre pile). Le réseau est mémorisé (en
    flash, jamais dans le code).
@@ -181,13 +181,13 @@ des lettres sont corrigés 1,5 s après la dernière frappe, sans clignoter.
 ### Accès depuis l'ordinateur
 
 Réglages → Données → **Accès depuis l'ordinateur** : le téléphone se connecte à ton Wi-Fi
-connu et affiche une adresse (ou `http://pamk-phone.local`) et un **code à 4 chiffres**. Tout
+connu et affiche une adresse (ou `http://pamk-brik.local`) et un **code à 4 chiffres**. Tout
 s'arrête quand tu quittes cet écran (ou après 10 min sans rien).
 - **Page web** (même Wi-Fi) : tâches (ajouter, renommer, cocher, échéance, heure, répétition,
   supprimer), notes, **« Télécharger la sauvegarde »** (JSON), adresse de l'agenda, envoi d'un
   firmware `.bin` (Croquis → Exporter les binaires compilés).
 - **Mise à jour sans fil depuis l'Arduino IDE** : écran ouvert, Outils → Port → port réseau
-  « pamk-phone », téléverser, mot de passe = le code. Le pare-feu Windows doit laisser passer
+  « pamk-brik », téléverser, mot de passe = le code. Le pare-feu Windows doit laisser passer
   l'outil de téléversement (le téléphone se reconnecte au PC).
 - **Agenda** : sur calendar.google.com (ordinateur) → Paramètres → ton agenda → « Intégrer
   l'agenda » → **« Adresse secrète au format iCal »**, à coller dans la page. Cette adresse

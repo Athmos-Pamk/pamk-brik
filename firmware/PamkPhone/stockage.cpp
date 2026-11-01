@@ -821,7 +821,7 @@ uint32_t octetsUtilises() { return s_monte ? (uint32_t)FFat.usedBytes() : 0; }
 
 void exporter(Print& sortie) {
   JsonDocument doc(&g_alloc);
-  doc["type"] = "pamk-phone-export";
+  doc["type"] = "pamk-brik-export";
   doc["version"] = 1;
   JsonArray ta = doc["taches"].to<JsonArray>();
   for (int i = 0; i < s_nbT; i++) {
