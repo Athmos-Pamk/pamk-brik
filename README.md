@@ -44,7 +44,8 @@ Everything is in [`firmware/README.md`](firmware/README.md) (in French): Arduino
 | `firmware/` | Arduino sketch (`PamkPhone/`), tools, setup guide |
 | `docs/` | decisions, wiring, mechanical data of the parts |
 | `cad/` | an earlier parametric case (CadQuery), its exports and checks |
-| root | Inventor files and print files of every case version (the latest is V4) |
+| root | the final V4 case: Inventor files (`Ensemble V4`, `Coque V4`, `Cadre V4`) and print files |
+| `anciennes_versions/` | earlier case versions (V2, V3, first shells), kept for history |
 
 ## Licence
 
