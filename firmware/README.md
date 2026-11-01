@@ -425,7 +425,9 @@ batterie (sur batterie, après au moins 2 h et 3 % de baisse).
 
 ## 10. Licences
 
-- **LilyGo-EPD47 est sous GPL-3.0** : si un jour tu distribues le firmware compilé (vente,
-  téléchargement), il doit lui aussi être publié sous GPL-3.0. Pour un usage perso, rien à faire.
+- **Tout le projet est sous GPL-3.0** depuis le 01/11/2026 : texte officiel dans `LICENSE`,
+  explications et composants tiers dans `NOTICE.md` (à la racine). C'est imposé par LilyGo-EPD47,
+  sous GPL-3.0 : un firmware distribué qui l'intègre doit l'être aussi. Le nom « Pamk Brik »
+  n'est pas couvert par la licence.
 - Polices Barlow et VT323 : SIL Open Font License 1.1.
 - ArduinoJson : MIT.
